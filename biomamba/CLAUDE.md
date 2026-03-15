@@ -11,18 +11,22 @@ Bi-Mamba-Chem is a PyTorch implementation of Bidirectional Mamba for molecular p
 ## Common Commands
 
 ```bash
-# Install dependencies
-cd biomamba
-pip install -r requirements.txt
+# Required environment variable for Mac (avoids OpenMP conflicts)
+export KMP_DUPLICATE_LIB_OK=TRUE
 
-# Run training (manual SSM - default, no mamba-ssm required)
-python3 train.py --dataset ESOL --epochs 100 --batch_size 32
+# Training with interactive device selection (auto-detects MPS/CUDA/CPU)
+python train.py --dataset ESOL --epochs 100
 
-# Run training with mamba-ssm (if installed)
-python3 train.py --dataset ESOL --epochs 100 --use_ssm
+# Training with explicit device
+python train.py --dataset ESOL --device mps --epochs 100
+python train.py --dataset ESOL --device cuda --epochs 100
+python train.py --dataset ESOL --device cpu --epochs 100
+
+# Training with performance options
+python train.py --dataset ESOL --batch_size 64 --num_workers 4 --gradient_accumulation_steps 2
 
 # Run evaluation
-python3 eval.py --checkpoint checkpoints/ESOL_bi_mamba_best.pt --dataset ESOL
+python eval.py --checkpoint checkpoints/ESOL_bi_mamba_best.pt --dataset ESOL
 ```
 
 ## Key Arguments
@@ -30,11 +34,15 @@ python3 eval.py --checkpoint checkpoints/ESOL_bi_mamba_best.pt --dataset ESOL
 | Argument | Description | Default |
 |----------|-------------|---------|
 | `--dataset` | Dataset (ESOL, BBBP, CLINTOX) | ESOL |
-| `--use_ssm` | Use manual SSM instead of mamba-ssm | False |
+| `--device` | Device (auto/mps/cuda/cpu) | auto |
+| `--batch_size` | Batch size | 64 |
+| `--num_workers` | DataLoader workers | 4 |
+| `--gradient_accumulation_steps` | Gradient accumulation | 1 |
 | `--d_model` | Model dimension | 256 |
 | `--n_layers` | Number of layers | 4 |
 | `--fusion` | Bidirectional fusion (concat/add/gate) | gate |
 | `--pool_type` | Pooling (mean/max/cls) | mean |
+| `--lr` | Learning rate | 1e-3 |
 
 ## Architecture
 
@@ -48,20 +56,13 @@ The project implements a bidirectional Mamba encoder for SMILES sequences:
 
 4. **Prediction Head** (`models/predictor.py`): Global pooling (mean/max/cls) + MLP for regression (MSE) or classification (BCE)
 
-## Testing
+## Device Support
 
-```bash
-# Test tokenizer
-python3 -c "from data.tokenizer import AtomTokenizer; t = AtomTokenizer(); print(t.tokenize('CCO'))"
+- **Apple Silicon (M1/M2/M3)**: Uses MPS backend - auto-detected
+- **NVIDIA GPU**: Uses CUDA - auto-detected
+- **CPU**: Fallback option
 
-# Test dataset
-python3 -c "from data.dataset import get_dataset; train,_,_,_ = get_dataset('ESOL'); print(len(train))"
-
-# Test model
-python3 -c "from models.ssm_core import BidirectionalSSM; import torch; m = BidirectionalSSM(64); print(m(torch.randn(2,32,64)).shape)"
-```
-
-Note: Some environments require `KMP_DUPLICATE_LIB_OK=TRUE` to avoid OpenMP conflicts.
+When running `train.py` or `eval.py` with `--device auto`, the script will detect available devices and prompt user to select.
 
 ## Data
 

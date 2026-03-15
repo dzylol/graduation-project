@@ -1,6 +1,32 @@
 """
-Dataset loader for MoleculeNet molecular property prediction.
-Supports ESOL, BBBP, and ClinTox datasets.
+分子数据集加载模块
+
+本文件负责加载和处理分子数据集 (MoleculeNet)。
+
+支持的数据库:
+-----------
+1. ESOL: 溶解度预测 (回归任务)
+2. BBBP: 血脑屏障穿透性 (二分类)
+3. ClinTox: 临床毒性 (二分类)
+
+核心概念:
+---------
+1. SMILES: 分子的字符串表示
+   - 例如: "CCO" 表示乙醇
+
+2. Dataset: PyTorch 的数据容器
+   - 提供 __len__ 和 __getitem__ 方法
+   - 可以被 DataLoader 使用
+
+3. Train/Val/Test Split: 训练/验证/测试集划分
+   - 训练集: 用于训练模型
+   - 验证集: 用于调参和早停
+   - 测试集: 用于最终评估
+
+数据划分比例通常是:
+- 训练集: 80%
+- 验证集: 10%
+- 测试集: 10%
 """
 
 import os
@@ -10,7 +36,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from typing import Optional, Tuple, List
-from rdkit import Chem
+from rdkit import Chem  # RDKit: 化学信息学库
 from rdkit.Chem import Descriptors
 
 from .tokenizer import AtomTokenizer
@@ -18,8 +44,21 @@ from .tokenizer import AtomTokenizer
 
 class MoleculeDataset(Dataset):
     """
-    PyTorch Dataset for molecular property prediction.
-    Handles SMILES strings and converts them to token IDs.
+    分子数据集类
+
+    继承自 PyTorch 的 Dataset,用于存储分子数据。
+
+    功能:
+    -----
+    1. 存储 SMILES 字符串和标签
+    2. 使用 RDKit 验证分子有效性
+    3. 提供分词和编码功能
+
+    为什么要验证分子?
+    -----------------
+    不是所有字符串都是有效的 SMILES!
+    例如 "XXX" 不是有效的分子表示。
+    我们用 RDKit 检查,无效的分子会被过滤掉。
     """
 
     def __init__(
@@ -30,50 +69,69 @@ class MoleculeDataset(Dataset):
         max_length: int = 128
     ):
         """
-        Initialize dataset.
+        初始化数据集
 
-        Args:
-            smiles_list: List of SMILES strings
-            labels: List of target values
-            tokenizer: Tokenizer instance
-            max_length: Maximum sequence length
+        参数:
+        -----
+        smiles_list : List[str]
+            SMILES 字符串列表
+
+        labels : List[float]
+            标签列表 (回归: 实数, 分类: 0 或 1)
+
+        tokenizer : AtomTokenizer
+            分词器,用于把 SMILES 转换为数字
+
+        max_length : int
+            最大序列长度
         """
         self.smiles_list = smiles_list
         self.labels = labels
         self.tokenizer = tokenizer
         self.max_length = max_length
 
-        # Validate SMILES
-        self.valid_indices = []
-        self.valid_smiles = []
-        self.valid_labels = []
+        # ====== 验证 SMILES 有效性 ======
+        # 使用 RDKit 检查每个 SMILES 是否能解析为有效分子
+        self.valid_indices = []  # 有效分子的索引
+        self.valid_smiles = []   # 有效的 SMILES
+        self.valid_labels = []  # 有效的标签
 
         for i, smiles in enumerate(smiles_list):
+            # Chem.MolFromSmiles() 尝试解析 SMILES
+            # 如果成功,返回分子对象
+            # 如果失败,返回 None
             mol = Chem.MolFromSmiles(smiles)
             if mol is not None:
                 self.valid_indices.append(i)
                 self.valid_smiles.append(smiles)
                 self.valid_labels.append(labels[i])
 
-        print(f"Valid molecules: {len(self.valid_smiles)}/{len(smiles_list)}")
+        print(f"有效分子: {len(self.valid_smiles)}/{len(smiles_list)}")
 
     def __len__(self) -> int:
+        """返回数据集大小"""
         return len(self.valid_smiles)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Get one item from dataset.
+        获取一个数据样本
 
-        Args:
-            idx: Index
+        参数:
+        -----
+        idx : int
+            索引
 
-        Returns:
-            Tuple of (input_ids, label)
+        返回:
+        -----
+        Tuple[torch.Tensor, torch.Tensor]:
+            (input_ids, label) - (输入ID, 标签)
         """
+        # 获取 SMILES 和标签
         smiles = self.valid_smiles[idx]
         label = self.valid_labels[idx]
 
-        # Tokenize
+        # ====== 分词和编码 ======
+        # SMILES 字符串 -> token IDs
         input_ids = self.tokenizer.encode(
             smiles,
             max_length=self.max_length,
@@ -81,73 +139,83 @@ class MoleculeDataset(Dataset):
             truncation=True
         )
 
-        return torch.tensor(input_ids, dtype=torch.long), torch.tensor(label, dtype=torch.float)
+        # 转换为 PyTorch Tensor
+        return (
+            torch.tensor(input_ids, dtype=torch.long),
+            torch.tensor(label, dtype=torch.float)
+        )
 
 
 def load_esol() -> Tuple[List[str], List[float]]:
     """
-    Load ESOL dataset (delaney solubility).
-    Source: https://github.com/deepchem/deepchem/blob/master/datasets/delaney-processed.csv
+    加载 ESOL 数据集 (溶解度预测)
 
-    Returns:
-        Tuple of (smiles_list, labels)
+    ESOL 是 MoleculeNet 的一个经典数据集:
+    - 任务: 预测化合物在水中的溶解度
+    - 标签: logS (溶解度的对数)
+    - 数值范围: 通常在 -6 到 1 之间
+
+    负值含义:
+    --------
+    logS = -2 表示溶解度为 10^(-2) = 0.01 mol/L
+    负值越大,溶解度越低!
+
+    返回:
+    -----
+    Tuple[List[str], List[float]]: (SMILES列表, 溶解度标签)
     """
-    # ESOL is a small dataset (~1128 molecules)
-    # We'll create a simple version with common molecules
-    # In practice, you would download from MoleculeNet
-
+    # ESOL 数据集 (约 1128 个分子)
+    # 这里提供一个简化版本用于演示
     data = [
-        ('CCO', -0.77),  # Ethanol
-        ('CC(C)C', -2.18),  # 2-methylpropane
-        ('CC(=O)O', -0.28),  # Acetic acid
-        ('c1ccccc1', -1.88),  # Benzene
-        ('CC(C)CC(C)C', -3.21),  # 2,4-dimethylpentane
-        ('CCCCC', -2.67),  # Pentane
-        ('CCCC', -1.85),  # Butane
-        ('CCC', -1.29),  # Propane
-        ('CC', -0.39),  # Ethane
-        ('C', -0.12),  # Methane
-        ('CCC(C)C', -2.92),  # 2-methylbutane
-        ('c1ccc(C)cc1', -2.59),  # Toluene
-        ('c1ccc(cc1)C(C)(C)C', -3.42),  # tert-butylbenzene
-        ('c1ccc2ccccc2c1', -2.82),  # Naphthalene
-        ('c1ccc2c(c1)ccc3c2cccc3', -4.03),  # Anthracene
-        ('c1ccc2c(c1)ccc3c2ccc4c3cccc4', -4.58),  # Tetracene
-        ('c1ccncc1', -1.06),  # Pyridine
-        ('c1cnccn1', -1.23),  # Pyrimidine
-        ('C1CCCCC1', -1.83),  # Cyclohexane
-        ('C1CCCC1', -1.68),  # Cyclopentane
-        ('C1CCC1', -1.15),  # Cyclobutane
-        ('C1CCCC1', -1.52),  # Cyclobutane (alternatvie)
-        ('c1ccoc1', -1.27),  # Furan
-        ('c1cc[nH]c1', -1.38),  # Pyrrole
-        ('c1cscc1', -1.41),  # Thiophene
-        ('CC=O', -0.58),  # Acetaldehyde
-        ('CC(C)=O', -0.32),  # Acetone
-        ('CCC(=O)C', -0.69),  # Butanone
-        ('CCC(=O)CCC', -1.22),  # 2-pentanone
-        ('CC(=O)CC(C)C', -1.03),  # Methyl isobutyl ketone
-        ('O=C(C)O', -0.38),  # Acetic anhydride (estimated)
-        ('CCOC(=O)C', -0.22),  # Ethyl acetate
-        ('CCCOC(=O)C', -0.68),  # Propyl acetate
-        ('CCOC(=O)CC', -0.63),  # Ethyl propionate
-        ('c1ccc(N)cc1', -1.52),  # Aniline
-        ('c1ccc(Nc2ccccc2)cc1', -2.47),  # Diphenylamine
-        ('c1ccc(O)cc1', -1.50),  # Phenol
-        ('c1ccc(Oc2ccccc2)cc1', -2.88),  # Diphenyl ether
-        ('CC(O)C', -0.90),  # 2-propanol
-        ('CCCO', -0.76),  # 1-propanol
-        ('CCCCO', -1.24),  # 1-butanol
-        ('CC(C)O', -0.89),  # 2-propanol
-        ('CC(C)(C)O', -0.93),  # tert-butanol
-        ('c1ccc2c(c1)C(=O)O2', -1.82),  # Phthalic anhydride
-        ('CC(=O)OC(=O)C', -0.44),  # Acetic anhydride
-        ('C#N', -0.25),  # HCN (estimated)
-        ('CC#N', -0.27),  # Acetonitrile
-        ('CCC#N', -0.36),  # Propionitrile
-        ('c1cccnc1', -1.04),  # Pyridine
-        ('c1cncnc1', -1.20),  # Pyrazine
-        ('c1cnc(N)nc1', -1.55),  # Pyrimidinamine
+        ('CCO', -0.77),  # 乙醇
+        ('CC(C)C', -2.18),  # 2-甲基丙烷
+        ('CC(=O)O', -0.28),  # 乙酸
+        ('c1ccccc1', -1.88),  # 苯
+        ('CC(C)CC(C)C', -3.21),  # 2,4-二甲基戊烷
+        ('CCCCC', -2.67),  # 戊烷
+        ('CCCC', -1.85),  # 丁烷
+        ('CCC', -1.29),  # 丙烷
+        ('CC', -0.39),  # 乙烷
+        ('C', -0.12),  # 甲烷
+        ('CCC(C)C', -2.92),  # 2-甲基丁烷
+        ('c1ccc(C)cc1', -2.59),  # 甲苯
+        ('c1ccc(cc1)C(C)(C)C', -3.42),  # 叔丁基苯
+        ('c1ccc2ccccc2c1', -2.82),  # 萘
+        ('c1ccc2c(c1)ccc3c2cccc3', -4.03),  # 蒽
+        ('c1ccc2c(c1)ccc3c2ccc4c3cccc4', -4.58),  # 并四苯
+        ('c1ccncc1', -1.06),  # 吡啶
+        ('c1cnccn1', -1.23),  # 嘧啶
+        ('C1CCCCC1', -1.83),  # 环己烷
+        ('C1CCCC1', -1.68),  # 环戊烷
+        ('C1CCC1', -1.15),  # 环丁烷
+        ('c1ccoc1', -1.27),  # 呋喃
+        ('c1cc[nH]c1', -1.38),  # 吡咯
+        ('c1cscc1', -1.41),  # 噻酚
+        ('CC=O', -0.58),  # 乙醛
+        ('CC(C)=O', -0.32),  # 丙酮
+        ('CCC(=O)C', -0.69),  # 丁酮
+        ('CCC(=O)CCC', -1.22),  # 2-戊酮
+        ('CC(=O)CC(C)C', -1.03),  # 甲基异丁基酮
+        ('CCOC(=O)C', -0.22),  # 乙酸乙酯
+        ('CCCOC(=O)C', -0.68),  # 乙酸丙酯
+        ('CCOC(=O)CC', -0.63),  # 丙酸乙酯
+        ('c1ccc(N)cc1', -1.52),  # 苯胺
+        ('c1ccc(Nc2ccccc2)cc1', -2.47),  # 二苯胺
+        ('c1ccc(O)cc1', -1.50),  # 苯酚
+        ('c1ccc(Oc2ccccc2)cc1', -2.88),  # 二苯醚
+        ('CC(O)C', -0.90),  # 2-丙醇
+        ('CCCO', -0.76),  # 1-丙醇
+        ('CCCCO', -1.24),  # 1-丁醇
+        ('CC(C)O', -0.89),  # 2-丙醇
+        ('CC(C)(C)O', -0.93),  # 叔丁醇
+        ('c1ccc2c(c1)C(=O)O2', -1.82),  # 邻苯二甲酸酐
+        ('CC(=O)OC(=O)C', -0.44),  # 乙酸酐
+        ('C#N', -0.25),  # 氰化氢
+        ('CC#N', -0.27),  # 乙腈
+        ('CCC#N', -0.36),  # 丙腈
+        ('c1cccnc1', -1.04),  # 吡啶
+        ('c1cncnc1', -1.20),  # 吡嗪
+        ('c1cnc(N)nc1', -1.55),  # 嘧啶胺
     ]
 
     smiles_list = [d[0] for d in data]
@@ -158,63 +226,71 @@ def load_esol() -> Tuple[List[str], List[float]]:
 
 def load_bbbp() -> Tuple[List[str], List[int]]:
     """
-    Load BBBP dataset (blood-brain barrier penetration).
-    Binary classification: 1 = penetrates, 0 = does not penetrate.
+    加载 BBBP 数据集 (血脑屏障穿透性)
 
-    Returns:
-        Tuple of (smiles_list, labels)
+    BBBP (Blood-Brain Barrier Penetration):
+    - 任务: 预测分子能否穿透血脑屏障
+    - 标签: 1 = 能穿透, 0 = 不能穿透
+
+    血脑屏障 (BBB):
+    -------------
+    大脑血管内壁的一层细胞,只允许某些分子通过。
+    药物设计时,需要考虑是否能穿透 BBB 到达大脑。
+
+    返回:
+    -----
+    Tuple[List[str], List[int]]: (SMILES列表, 穿透性标签)
     """
-    # Sample BBBP dataset
+    # BBBP 数据集样本
     data = [
-        ('O=C(C)Oc1ccccc1C(=O)O', 1),  # Aspirin
-        ('CC(=O)Oc1ccccc1C(=O)O', 1),  # Aspirin
-        ('CN1C=NC2=C1C(=O)N(C(=O)N2C)C', 1),  # Caffeine
-        ('CN1C(=O)CN=C(c2ccccc2)c3cc(Cl)ccc13', 1),  # Diazepam
-        ('CN1C(=O)CN=C(c2ccccc2)c3cc(Cl)ccc13', 1),  # Diazepam
-        ('Clc1ccc(cc1)C(c2ccccc2)N3CCN(CC3)C', 1),  # Cetirizine
-        ('CC(C)(C)Oc1ccc(cc1)C(C)C(=O)O', 1),  # Ibuprofen
-        ('CC(C)CC(C)C', 0),  # Isobutane (no BBB penetration)
-        ('C=C', 0),  # Ethylene (no BBB penetration)
-        ('CC(C)=O', 1),  # Acetone (some penetration)
-        ('c1ccccc1', 1),  # Benzene
-        ('c1ccc(cc1)C', 1),  # Toluene
-        ('c1ccc(N)cc1', 1),  # Aniline
-        ('c1ccc(O)cc1', 1),  # Phenol
-        ('c1ccc(C)cc1', 1),  # Xylene
-        ('c1ccc(Cl)cc1', 1),  # Chlorobenzene
-        ('c1ccc(F)cc1', 1),  # Fluorobenzene
-        ('c1ccc(Br)cc1', 1),  # Bromobenzene
-        ('CC(C)Cc1ccc(C(C)C)cc1', 1),  # Ibuprofen-like
-        ('CC(C)CCOC(=O)C(C)CO', 1),  # Naproxen-like
-        ('O=C1c2ccccc2CCc3ccccc13', 1),  # Fluorenone
-        ('c1ccc2c(c1)Cc3ccccc3C2', 1),  # Fluorene
-        ('c1ccncc1', 1),  # Pyridine
-        ('c1cnc[nH]1', 1),  # Imidazole
-        ('N#Cc1ccc(N)cc1', 1),  # 4-aminobenzonitrile
-        ('Nc1ccc(N)cc1', 1),  # 1,4-phenylenediamine
-        ('O=C(N)N', 1),  # Urea
-        ('CN(C)C(=O)N', 1),  # Dimethylurea
-        ('CC(C)N', 1),  # Isopropylamine
-        ('CCN', 1),  # Ethylamine
-        ('CN', 1),  # Methylamine
-        ('C1CCNC1', 1),  # Pyrrolidine
-        ('C1CCNCC1', 1),  # Piperazine
-        ('C1COCCC1', 1),  # Tetrahydrofuran
-        ('C1CCOCC1', 1),  # Tetrahydropyran
-        ('ClCCCl', 0),  # 1,2-dichloroethane
-        ('ClCCl', 0),  # Dichloromethane
-        ('CC(=O)O', 1),  # Acetic acid
-        ('CC(C)O', 1),  # Isopropanol
-        ('OCCO', 1),  # Ethylene glycol
-        ('OCCOCCO', 1),  # Triethylene glycol
-        ('COCCO', 1),  # 2-methoxyethanol
-        ('CCOC(=O)CO', 1),  # Ethyl lactate
-        ('c1ccc2[nH]ccc2c1', 1),  # Indole
-        ('c1ccc2[nH]cc2c1', 1),  # Indole
-        ('c1ccc2c(c1)[nH]cc2', 1),  # Indole
-        ('c1ccc2c(c1)C(=O)N2', 1),  # Oxindole
-        ('c1ccc2c(c1)Cc3ccccc3C2', 1),  # Tetralin
-        ('c1ccc2c(c1)C=CC2', 1),  # Indene
+        ('O=C(C)Oc1ccccc1C(=O)O', 1),  # 阿司匹林
+        ('CC(=O)Oc1ccccc1C(=O)O', 1),  # 阿司匹林
+        ('CN1C=NC2=C1C(=O)N(C(=O)N2C)C', 1),  # 咖啡因
+        ('CN1C(=O)CN=C(c2ccccc2)c3cc(Cl)ccc13', 1),  # 地西泮
+        ('Clc1ccc(cc1)C(c2ccccc2)N3CCN(CC3)C', 1),  # 西替利嗪
+        ('CC(C)(C)Oc1ccc(cc1)C(C)C(=O)O', 1),  # 布洛芬
+        ('CC(C)CC(C)C', 0),  # 异丁烷 (不穿透)
+        ('C=C', 0),  # 乙烯 (不穿透)
+        ('CC(C)=O', 1),  # 丙酮
+        ('c1ccccc1', 1),  # 苯
+        ('c1ccc(cc1)C', 1),  # 甲苯
+        ('c1ccc(N)cc1', 1),  # 苯胺
+        ('c1ccc(O)cc1', 1),  # 苯酚
+        ('c1ccc(C)cc1', 1),  # 二甲苯
+        ('c1ccc(Cl)cc1', 1),  # 氯苯
+        ('c1ccc(F)cc1', 1),  # 氟苯
+        ('c1ccc(Br)cc1', 1),  # 溴苯
+        ('CC(C)Cc1ccc(C(C)C)cc1', 1),  # 布洛芬类
+        ('CC(C)CCOC(=O)C(C)CO', 1),  # 萘普生类
+        ('O=C1c2ccccc2CCc3ccccc13', 1),  # 芴酮
+        ('c1ccc2c(c1)Cc3ccccc3C2', 1),  # 芴
+        ('c1ccncc1', 1),  # 吡啶
+        ('c1cnc[nH]1', 1),  # 咪唑
+        ('N#Cc1ccc(N)cc1', 1),  # 4-氨基苯甲腈
+        ('Nc1ccc(N)cc1', 1),  # 对苯二胺
+        ('O=C(N)N', 1),  # 尿素
+        ('CN(C)C(=O)N', 1),  # 二甲基脲
+        ('CC(C)N', 1),  # 异丙胺
+        ('CCN', 1),  # 乙胺
+        ('CN', 1),  # 甲胺
+        ('C1CCNC1', 1),  # 吡咯烷
+        ('C1CCNCC1', 1),  # 哌嗪
+        ('C1COCCC1', 1),  # 四氢呋喃
+        ('C1CCOCC1', 1),  # 四氢吡喃
+        ('ClCCCl', 0),  # 1,2-二氯乙烷 (不穿透)
+        ('ClCCl', 0),  # 二氯甲烷 (不穿透)
+        ('CC(=O)O', 1),  # 乙酸
+        ('CC(C)O', 1),  # 异丙醇
+        ('OCCO', 1),  # 乙二醇
+        ('OCCOCCO', 1),  # 三乙二醇
+        ('COCCO', 1),  # 2-甲氧基乙醇
+        ('CCOC(=O)CO', 1),  # 乳酸乙酯
+        ('c1ccc2[nH]ccc2c1', 1),  # 吲哚
+        ('c1ccc2[nH]cc2c1', 1),  # 吲哚
+        ('c1ccc2c(c1)[nH]cc2', 1),  # 吲哚
+        ('c1ccc2c(c1)C(=O)N2', 1),  # 羟吲哚
+        ('c1ccc2c(c1)Cc3ccccc3C2', 1),  # 四氢萘
+        ('c1ccc2c(c1)C=CC2', 1),  # 茚
     ]
 
     smiles_list = [d[0] for d in data]
@@ -225,57 +301,66 @@ def load_bbbp() -> Tuple[List[str], List[int]]:
 
 def load_clintox() -> Tuple[List[str], List[int]]:
     """
-    Load ClinTox dataset (clinical trial toxicity).
-    Binary classification: 1 = toxic, 0 = non-toxic.
+    加载 ClinTox 数据集 (临床毒性)
 
-    Returns:
-        Tuple of (smiles_list, labels)
+    ClinTox:
+    - 任务: 预测化合物的临床毒性
+    - 标签: 1 = 有毒, 0 = 无毒
+
+    数据来源:
+    ---------
+    FDA 批准药物 vs 临床失败药物的毒性数据。
+
+    返回:
+    -----
+    Tuple[List[str], List[int]]: (SMILES列表, 毒性标签)
     """
-    # Sample ClinTox dataset (FDA approval status + toxicity)
+    # ClinTox 数据集样本
     data = [
-        # FDA approved drugs (label 0 - not toxic)
-        ('CC(=O)Oc1ccccc1C(=O)O', 0),  # Aspirin
-        ('CN1C=NC2=C1C(=O)N(C(=O)N2C)C', 0),  # Caffeine
-        ('CC(C)(C)Oc1ccc(cc1)C(C)C(=O)O', 0),  # Ibuprofen
-        ('CC(C)N', 0),  # Isopropylamine
-        ('CN', 0),  # Methylamine
-        ('CC(C)Cc1ccc(cc1)C(C)C(=O)O', 0),  # Ibuprofen
-        ('CN1C(=O)CN=C(c2ccccc2)c3cc(Cl)ccc13', 0),  # Diazepam
-        ('Clc1ccc(cc1)C(c2ccccc2)N3CCN(CC3)C', 0),  # Cetirizine
-        ('CC(C)Cc1ccc(C(C)C)cc1', 0),  # Biphenyl
-        ('c1ccccc1', 0),  # Benzene
-        ('c1ccc(N)cc1', 0),  # Aniline
-        ('c1ccc(O)cc1', 0),  # Phenol
-        ('CC(=O)N', 0),  # Acetamide
-        ('CCOC(=O)C', 0),  # Ethyl acetate
-        ('CCO', 0),  # Ethanol
-        ('CCC', 0),  # Propane
-        ('CCCC', 0),  # Butane
-        ('CCCCC', 0),  # Pentane
-        ('c1ccc(cc1)C', 0),  # Toluene
-        ('c1ccc(C)cc1', 0),  # Xylene
-        ('CC(C)O', 0),  # Isopropanol
-        # Toxic compounds (label 1)
-        ('CC(C)(C)C(=O)O', 1),  # Pivalic acid
-        ('ClCCCl', 1),  # 1,2-dichloroethane
-        ('ClCCl', 1),  # Dichloromethane
-        ('ClCCBr', 1),  # Bromochloroethane
-        ('CC(=O)Cl', 1),  # Acetyl chloride
-        ('C(=O)Cl', 1),  # Phosgene
-        ('CC(=O)OC(=O)C', 1),  # Acetic anhydride
-        ('O=C=O', 1),  # Carbon dioxide (toxic in high conc)
-        ('C#N', 1),  # Hydrogen cyanide
-        ('ClC#N', 1),  # Chlorocyan
-        ('CC(=O)OCCOC(=O)C', 1),  # Triacetin
-        ('c1ccc2c(c1)Cl', 1),  # Chloronaphthalene
-        ('Clc1ccc(cc1)C(=O)O', 1),  # 4-chlorobenzoic acid
-        ('Clc1ccccc1Cl', 1),  # Dichlorobenzene
-        ('Clc1ccc(Cl)cc1', 1),  # 1,4-dichlorobenzene
-        ('Clc1ccc(Cl)c(Cl)c1', 1),  # 1,2,4-trichlorobenzene
-        ('CC(C)C', 1),  # Isobutane (toxic in high conc)
-        ('c1ccncc1', 1),  # Pyridine (toxic)
-        ('c1cnc[nH]1', 1),  # Imidazole (toxic)
-        ('Clc1ccc(N)cc1', 1),  # 4-chloroaniline (toxic)
+        # FDA 批准药物 (标签 0 - 无毒)
+        ('CC(=O)Oc1ccccc1C(=O)O', 0),  # 阿司匹林
+        ('CN1C=NC2=C1C(=O)N(C(=O)N2C)C', 0),  # 咖啡因
+        ('CC(C)(C)Oc1ccc(cc1)C(C)C(=O)O', 0),  # 布洛芬
+        ('CC(C)N', 0),  # 异丙胺
+        ('CN', 0),  # 甲胺
+        ('CC(C)Cc1ccc(cc1)C(C)C(=O)O', 0),  # 布洛芬
+        ('CN1C(=O)CN=C(c2ccccc2)c3cc(Cl)ccc13', 0),  # 地西泮
+        ('Clc1ccc(cc1)C(c2ccccc2)N3CCN(CC3)C', 0),  # 西替利嗪
+        ('CC(C)Cc1ccc(C(C)C)cc1', 0),  # 联苯
+        ('c1ccccc1', 0),  # 苯
+        ('c1ccc(N)cc1', 0),  # 苯胺
+        ('c1ccc(O)cc1', 0),  # 苯酚
+        ('CC(=O)N', 0),  # 乙酰胺
+        ('CCOC(=O)C', 0),  # 乙酸乙酯
+        ('CCO', 0),  # 乙醇
+        ('CCC', 0),  # 丙烷
+        ('CCCC', 0),  # 丁烷
+        ('CCCCC', 0),  # 戊烷
+        ('c1ccc(cc1)C', 0),  # 甲苯
+        ('c1ccc(C)cc1', 0),  # 二甲苯
+        ('CC(C)O', 0),  # 异丙醇
+
+        # 有毒化合物 (标签 1)
+        ('CC(C)(C)C(=O)O', 1),  # 特戊酸
+        ('ClCCCl', 1),  # 1,2-二氯乙烷
+        ('ClCCl', 1),  # 二氯甲烷
+        ('ClCCBr', 1),  # 溴氯乙烷
+        ('CC(=O)Cl', 1),  # 乙酰氯
+        ('C(=O)Cl', 1),  # 光气
+        ('CC(=O)OC(=O)C', 1),  # 乙酸酐
+        ('O=C=O', 1),  # 二氧化碳 (高浓度有毒)
+        ('C#N', 1),  # 氰化氢
+        ('ClC#N', 1),  # 氯氰
+        ('CC(=O)OCCOC(=O)C', 1),  # 三乙酸甘油酯
+        ('c1ccc2c(c1)Cl', 1),  # 氯萘
+        ('Clc1ccc(cc1)C(=O)O', 1),  # 4-氯苯甲酸
+        ('Clc1ccccc1Cl', 1),  # 二氯苯
+        ('Clc1ccc(Cl)cc1', 1),  # 1,4-二氯苯
+        ('Clc1ccc(Cl)c(Cl)c1', 1),  # 1,2,4-三氯苯
+        ('CC(C)C', 1),  # 异丁烷 (高浓度有毒)
+        ('c1ccncc1', 1),  # 吡啶 (有毒)
+        ('c1cnc[nH]1', 1),  # 咪唑 (有毒)
+        ('Clc1ccc(N)cc1', 1),  # 4-氯苯胺 (有毒)
     ]
 
     smiles_list = [d[0] for d in data]
@@ -292,21 +377,38 @@ def get_dataset(
     seed: int = 42
 ) -> Tuple[MoleculeDataset, MoleculeDataset, MoleculeDataset, AtomTokenizer]:
     """
-    Load and split a dataset.
+    获取数据集
 
-    Args:
-        name: Dataset name (ESOL, BBBP, ClinTox)
-        data_dir: Directory to save/load data
-        max_length: Maximum sequence length
-        split_ratio: Train/val/test split ratio
-        seed: Random seed
+    这个函数是主要入口,一次性返回:
+    - 训练集
+    - 验证集
+    - 测试集
+    - 分词器
 
-    Returns:
-        Tuple of (train_dataset, val_dataset, test_dataset, tokenizer)
+    参数:
+    -----
+    name : str
+        数据集名称: 'ESOL', 'BBBP', 'CLINTOX'
+
+    data_dir : str
+        数据目录 (暂未使用)
+
+    max_length : int
+        最大序列长度
+
+    split_ratio : Tuple[float, float, float]
+        划分比例 (训练, 验证, 测试)
+
+    seed : int
+        随机种子,保证划分可复现
+
+    返回:
+    -----
+    Tuple[...]: (训练集, 验证集, 测试集, 分词器)
     """
     np.random.seed(seed)
 
-    # Load dataset
+    # ====== 1. 加载对应数据集 ======
     if name.upper() == 'ESOL':
         smiles_list, labels = load_esol()
     elif name.upper() == 'BBBP':
@@ -314,12 +416,12 @@ def get_dataset(
     elif name.upper() == 'CLINTOX':
         smiles_list, labels = load_clintox()
     else:
-        raise ValueError(f"Unknown dataset: {name}")
+        raise ValueError(f"未知数据集: {name}")
 
-    # Build vocabulary
+    # ====== 2. 创建分词器 ======
     tokenizer = AtomTokenizer()
 
-    # Create dataset
+    # ====== 3. 创建完整数据集 ======
     dataset = MoleculeDataset(
         smiles_list=smiles_list,
         labels=labels,
@@ -327,19 +429,20 @@ def get_dataset(
         max_length=max_length
     )
 
-    # Shuffle indices
+    # ====== 4. 随机划分 ======
     indices = np.random.permutation(len(dataset))
 
-    # Split
+    # 计算划分点
     n = len(dataset)
-    n_train = int(n * split_ratio[0])
-    n_val = int(n * split_ratio[1])
+    n_train = int(n * split_ratio[0])      # 训练集大小
+    n_val = int(n * split_ratio[1])        # 验证集大小
 
+    # 划分索引
     train_indices = indices[:n_train]
     val_indices = indices[n_train:n_train + n_val]
     test_indices = indices[n_train + n_val:]
 
-    # Create subsets
+    # ====== 5. 创建子数据集 ======
     train_smiles = [dataset.valid_smiles[i] for i in train_indices]
     train_labels = [dataset.valid_labels[i] for i in train_indices]
     val_smiles = [dataset.valid_smiles[i] for i in val_indices]
@@ -356,37 +459,43 @@ def get_dataset(
 
 def get_task_type(dataset_name: str) -> str:
     """
-    Get task type for a dataset.
+    获取数据集对应的任务类型
 
-    Args:
-        dataset_name: Dataset name
+    参数:
+    -----
+    dataset_name : str
+        数据集名称
 
-    Returns:
-        'regression' or 'classification'
+    返回:
+    -----
+    str: 'regression' 或 'classification'
     """
     if dataset_name.upper() == 'ESOL':
         return 'regression'
     elif dataset_name.upper() in ['BBBP', 'CLINTOX']:
         return 'classification'
     else:
-        raise ValueError(f"Unknown dataset: {dataset_name}")
+        raise ValueError(f"未知数据集: {dataset_name}")
 
 
 if __name__ == "__main__":
-    # Test dataset loading
-    print("Testing ESOL dataset...")
+    """测试数据加载"""
+    # 测试 ESOL
+    print("测试 ESOL 数据集...")
     train, val, test, tokenizer = get_dataset('ESOL')
-    print(f"Train size: {len(train)}, Val size: {len(val)}, Test size: {len(test)}")
-    print(f"Vocab size: {len(tokenizer)}")
+    print(f"训练集大小: {len(train)}, 验证集: {len(val)}, 测试集: {len(test)}")
+    print(f"词表大小: {len(tokenizer)}")
 
     sample = train[0]
-    print(f"Sample input shape: {sample[0].shape}")
-    print(f"Sample label: {sample[1]}")
+    print(f"样本输入形状: {sample[0].shape}")
+    print(f"样本标签: {sample[1]}")
 
-    print("\nTesting BBBP dataset...")
+    # 测试 BBBP
+    print("\n测试 BBBP 数据集...")
     train, val, test, tokenizer = get_dataset('BBBP')
-    print(f"Train size: {len(train)}, Val size: {len(val)}, Test size: {len(test)}")
+    print(f"训练集大小: {len(train)}, 验证集: {len(val)}, 测试集: {len(test)}")
 
-    print("\nTesting ClinTox dataset...")
+    # 测试 ClinTox
+    print("\n测试 ClinTox 数据集...")
     train, val, test, tokenizer = get_dataset('CLINTOX')
-    print(f"Train size: {len(train)}, Val size: {len(val)}, Test size: {len(test)}")
+    print(f"训练集大小: {len(train)}, 验证集: {len(val)}, 测试集: {len(test)}")
