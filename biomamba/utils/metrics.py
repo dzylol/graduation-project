@@ -1,5 +1,18 @@
 """
-Evaluation metrics for molecular property prediction.
+评估指标模块 - 用于衡量分子属性预测模型的性能
+
+本模块提供了回归任务和分类任务的各种评估指标:
+- 回归任务: MSE, RMSE, MAE, R²
+- 分类任务: Accuracy, Precision, Recall, F1, AUC
+
+使用示例:
+    # 回归任务
+    metrics = compute_metrics(y_true, y_pred, 'regression')
+    print(f"RMSE: {metrics['rmse']:.4f}")
+
+    # 分类任务
+    metrics = compute_metrics(y_true, y_pred, 'classification', y_prob)
+    print(f"AUC: {metrics['auc']:.4f}")
 """
 
 import numpy as np
@@ -22,14 +35,26 @@ def compute_regression_metrics(
     y_pred: np.ndarray,
 ) -> Dict[str, float]:
     """
-    Compute regression metrics.
+    计算回归任务的评估指标
+
+    回归任务是指预测连续值,如预测分子的溶解度。
+
+    指标说明:
+    - MSE (Mean Squared Error, 均方误差): 预测值与真实值差异的平方的平均值。
+      值越小越好,表示预测误差越小。
+    - RMSE (Root Mean Squared Error, 均方根误差): MSE的平方根。
+      与目标值单位相同,更易解释。值越小越好。
+    - MAE (Mean Absolute Error, 平均绝对误差): 预测值与真实值绝对差异的平均值。
+      对异常值更鲁棒。值越小越好。
+    - R² (R-squared, 决定系数): 表示模型解释目标变量变异的程度。
+      范围通常在0-1之间,值越接近1表示模型拟合效果越好。
 
     Args:
-        y_true: True values
-        y_pred: Predicted values
+        y_true: 真实的目标值数组
+        y_pred: 模型预测的值数组
 
     Returns:
-        Dictionary of metrics
+        包含MSE, RMSE, MAE, R²指标的字典
     """
     mse = mean_squared_error(y_true, y_pred)
     rmse = np.sqrt(mse)
@@ -50,15 +75,30 @@ def compute_classification_metrics(
     y_prob: Optional[np.ndarray] = None,
 ) -> Dict[str, float]:
     """
-    Compute classification metrics.
+    计算分类任务的评估指标
+
+    分类任务是指预测离散的类别标签,如判断分子是否有毒性。
+
+    指标说明:
+    - Accuracy (准确率): 正确预测的数量除以总预测数量。
+      值越接近1越好,但在类别不平衡时可能具有误导性。
+    - Precision (精确率): 预测为正类中实际为正类的比例。
+      值越接近1越好,高精确率意味着较少的误报。
+    - Recall (召回率): 实际为正类中被正确预测的比例。
+      值越接近1越好,高召回率意味着较少的漏报。
+    - F1 Score (F1分数): Precision和Recall的调和平均数。
+      值越接近1越好,是精确率和召回率的平衡指标。
+    - AUC (Area Under ROC Curve, ROC曲线下面积): 衡量分类器区分能力的指标。
+      值越接近1越好,0.5表示随机猜测,1.0表示完美分类。
+    - Confusion Matrix (混淆矩阵): TN(真负), FP(假正), FN(假负), TP(真正)
 
     Args:
-        y_true: True labels
-        y_pred: Predicted labels
-        y_prob: Predicted probabilities (optional)
+        y_true: 真实的类别标签数组 (0或1)
+        y_pred: 模型预测的类别标签数组 (0或1)
+        y_prob: 模型预测为正类的概率数组 (可选,用于计算AUC)
 
     Returns:
-        Dictionary of metrics
+        包含Accuracy, Precision, Recall, F1, AUC等指标的字典
     """
     # Binary classification metrics
     accuracy = accuracy_score(y_true, y_pred)
@@ -96,16 +136,18 @@ def compute_metrics(
     y_prob: Optional[np.ndarray] = None,
 ) -> Dict[str, float]:
     """
-    Compute metrics based on task type.
+    根据任务类型计算相应的评估指标
+
+    本函数是一个统一入口,根据task_type参数自动选择计算回归指标或分类指标。
 
     Args:
-        y_true: True values/labels
-        y_pred: Predicted values/labels
-        task_type: 'regression' or 'classification'
-        y_prob: Predicted probabilities (for classification)
+        y_true: 真实值或真实标签数组
+        y_pred: 预测值或预测标签数组
+        task_type: 任务类型,可选'regression'(回归)或'classification'(分类)
+        y_prob: 预测为正类的概率 (仅分类任务需要,用于计算AUC)
 
     Returns:
-        Dictionary of metrics
+        包含相应评估指标的字典
     """
     if task_type == 'regression':
         return compute_regression_metrics(y_true, y_pred)
@@ -115,14 +157,18 @@ def compute_metrics(
 
 def format_metrics(metrics: Dict[str, Any], task_type: str) -> str:
     """
-    Format metrics for display.
+    将评估指标格式化为易读的字符串
+
+    用于在控制台打印时将指标字典转换为简洁的字符串格式。
 
     Args:
-        metrics: Dictionary of metrics
-        task_type: 'regression' or 'classification'
+        metrics: 包含评估指标的字典
+        task_type: 任务类型,可选'regression'(回归)或'classification'(分类)
 
     Returns:
-        Formatted string
+        格式化的指标字符串,例如:
+        - 回归任务: "RMSE: 0.1234, MAE: 0.1000, R2: 0.9500"
+        - 分类任务: "Accuracy: 0.9000, Precision: 0.8500, Recall: 0.8800, F1: 0.8650, AUC: 0.9200"
     """
     if task_type == 'regression':
         return (

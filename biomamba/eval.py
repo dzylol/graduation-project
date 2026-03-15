@@ -1,5 +1,14 @@
 """
-Evaluation script for Bi-Mamba-Chem molecular property prediction.
+评估脚本 - 用于在测试集上评估训练好的Bi-Mamba模型
+
+使用方式:
+    python eval.py --checkpoint checkpoints/ESOL_bi_mamba_best.pt --dataset ESOL
+
+本脚本会:
+1. 加载训练好的模型检查点
+2. 在指定的数据集(训练集/验证集/测试集)上进行预测
+3. 计算并显示评估指标
+4. (可选)保存预测结果到文件
 """
 
 import os
@@ -11,15 +20,15 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 # Import project modules
-from biomamba.data import get_dataset, get_task_type
-from biomamba.models import BiMambaForPrediction
-from biomamba.utils.metrics import compute_metrics, format_metrics
+from data import get_dataset, get_task_type
+from models import BiMambaForPrediction
+from utils.metrics import compute_metrics, format_metrics
 
 
 def parse_args():
-    """Parse command line arguments."""
+    """解析命令行参数"""
     parser = argparse.ArgumentParser(
-        description='Evaluate Bi-Mamba-Chem for molecular property prediction'
+        description='评估Bi-Mamba-Chem分子属性预测模型'
     )
 
     # Dataset
@@ -120,7 +129,7 @@ def parse_args():
         '--device',
         type=str,
         default='auto',
-        help='Device (auto, cpu, cuda)'
+        help='Device (auto, cpu, cuda, mps)'
     )
     parser.add_argument(
         '--split',
@@ -140,17 +149,92 @@ def parse_args():
 
 
 def set_seed(seed: int):
-    """Set random seeds for reproducibility."""
+    """
+    设置随机种子以确保结果可复现
+
+    随机种子使得每次运行程序时,随机操作(如参数初始化、数据打乱)产生相同的结果,
+    这对于调试和对比实验非常重要。
+
+    Args:
+        seed: 随机种子值,通常使用42
+    """
     np.random.seed(seed)
     torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    if torch.backends.mps.is_available():
+        torch.mps.manual_seed(seed)
 
 
 def get_device(device_str: str) -> torch.device:
-    """Get torch device."""
+    """
+    根据字符串获取PyTorch设备
+
+    Args:
+        device_str: 设备字符串,可选'auto', 'cpu', 'cuda', 'mps'
+
+    Returns:
+        PyTorch设备对象
+    """
     if device_str == 'auto':
-        return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if torch.backends.mps.is_available():
+            return torch.device('mps')
+        elif torch.cuda.is_available():
+            return torch.device('cuda')
+        else:
+            return torch.device('cpu')
     return torch.device(device_str)
+
+
+def detect_and_select_device() -> str:
+    """
+    自动检测可用的计算设备并让用户选择
+
+    本函数会检测:
+    - CUDA: NVIDIA GPU (如RTX 3090, A100等)
+    - MPS: Apple Silicon GPU (如M1, M2, M3芯片)
+    - CPU: 通用处理器
+
+    Returns:
+        选中的设备字符串 ('cpu', 'cuda', 或 'mps')
+    """
+    print("\n" + "=" * 60)
+    print("Detecting available compute devices...")
+    print("=" * 60)
+
+    cuda_available = torch.cuda.is_available()
+    mps_available = torch.backends.mps.is_available()
+
+    devices = []
+    device_info = {}
+
+    devices.append('cpu')
+    device_info['cpu'] = 'CPU'
+
+    if cuda_available:
+        devices.append('cuda')
+        device_info['cuda'] = f"CUDA (NVIDIA GPU: {torch.cuda.get_device_name(0)})"
+
+    if mps_available:
+        devices.append('mps')
+        device_info['mps'] = "MPS (Apple Silicon GPU)"
+
+    print("\nAvailable devices:")
+    for i, dev in enumerate(devices):
+        print(f"  {i + 1}. {device_info[dev]}")
+
+    if len(devices) == 1:
+        return devices[0]
+
+    print("\n  0. auto (fastest)")
+    while True:
+        try:
+            choice = input("\nSelect device [0-{}]: ".format(len(devices))).strip()
+            choice = int(choice) if choice else 0
+            if 0 <= choice <= len(devices):
+                return ['mps', 'cuda', 'cpu'][choice] if choice == 0 else devices[choice - 1]
+        except ValueError:
+            pass
 
 
 @torch.no_grad()
@@ -161,16 +245,19 @@ def predict(
     task_type: str,
 ):
     """
-    Make predictions.
+    对数据集进行预测
+
+    遍历数据加载器中的所有批次,使用训练好的模型进行预测。
 
     Args:
-        model: Model
-        dataloader: DataLoader
-        device: Device
-        task_type: 'regression' or 'classification'
+        model: 训练好的PyTorch模型
+        dataloader: 数据加载器
+        device: 计算设备
+        task_type: 任务类型,'regression'(回归)或'classification'(分类)
 
     Returns:
-        Tuple of (predictions, labels)
+        predictions: 模型预测值数组
+        labels: 真实标签/值数组
     """
     model.eval()
     all_preds = []
@@ -196,14 +283,32 @@ def predict(
 
 
 def main():
-    """Main evaluation function."""
+    """
+    评估主函数
+
+    评估流程:
+    1. 解析命令行参数
+    2. 设置随机种子
+    3. 选择计算设备
+    4. 加载模型检查点
+    5. 加载数据集
+    6. 创建模型并加载权重
+    7. 在指定数据上运行预测
+    8. 计算评估指标
+    9. 显示并保存结果
+    """
     args = parse_args()
 
     # Set seed
     set_seed(args.seed)
 
-    # Device
-    device = get_device(args.device)
+    # Device - interactive selection
+    if args.device == 'auto':
+        device_str = detect_and_select_device()
+    else:
+        device_str = args.device
+
+    device = get_device(device_str)
     print(f"Using device: {device}")
 
     # Check checkpoint exists
@@ -213,7 +318,7 @@ def main():
 
     # Load checkpoint
     print(f"\nLoading checkpoint from {args.checkpoint}...")
-    checkpoint = torch.load(args.checkpoint, map_location=device)
+    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
 
     # Load dataset
     print(f"Loading {args.dataset} dataset...")

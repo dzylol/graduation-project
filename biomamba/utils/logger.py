@@ -1,5 +1,21 @@
 """
-Logger utility for training and evaluation.
+日志记录模块 - 用于记录训练和评估过程中的信息
+
+Logger (日志记录器) 是编程中常用的工具,用于:
+1. 记录程序运行状态和进度
+2. 记录训练过程中的指标变化 (如loss, accuracy)
+3. 记录警告和错误信息
+4. 将日志同时输出到控制台和文件
+
+本模块提供了:
+- Logger类: 功能完整的日志记录器,支持控制台和文件双输出
+- get_logger()函数: 快速获取日志记录器实例
+
+使用示例:
+    logger = get_logger(name='training', log_dir='./logs')
+    logger.info("Training started")
+    logger.log_metrics(epoch=1, metrics={'loss': 0.5, 'accuracy': 0.8})
+    logger.save_metrics()  # 保存指标历史到JSON文件
 """
 
 import os
@@ -12,7 +28,18 @@ from datetime import datetime
 
 class Logger:
     """
-    Simple logger for training and evaluation.
+    日志记录器类
+
+    功能:
+    - 同时向控制台和文件输出日志
+    - 记录训练指标并保存历史
+    - 支持不同级别的日志: DEBUG, INFO, WARNING, ERROR
+
+    属性:
+    - log_dir: 日志文件保存目录
+    - name: 日志记录器名称
+    - log_file: 日志文件路径
+    - metrics_history: 训练指标历史记录列表
     """
 
     def __init__(
@@ -22,12 +49,18 @@ class Logger:
         level: int = logging.INFO,
     ):
         """
-        Initialize logger.
+        初始化日志记录器
+
+        初始化时会:
+        1. 创建日志保存目录(如果不存在)
+        2. 生成带时间戳的日志文件名
+        3. 配置文件处理器(保存详细日志到文件)
+        4. 配置控制台处理器(显示简洁日志)
 
         Args:
-            log_dir: Directory to save logs
-            name: Logger name
-            level: Logging level
+            log_dir: 日志文件保存的目录,默认'./logs'
+            name: 日志记录器名称,默认'biomamba'
+            level: 日志级别,默认logging.INFO (可选: DEBUG, INFO, WARNING, ERROR)
         """
         self.log_dir = log_dir
         self.name = name
@@ -88,12 +121,17 @@ class Logger:
         prefix: str = '',
     ):
         """
-        Log metrics for an epoch.
+        记录训练指标
+
+        将每个epoch的训练指标记录到日志中,并保存到历史记录中。
+        方便后续分析训练过程和绘制指标曲线。
 
         Args:
-            epoch: Epoch number
-            metrics: Dictionary of metrics
-            prefix: Prefix for metric names (e.g., 'train_', 'val_')
+            epoch: 当前的训练轮次 (从1开始)
+            metrics: 包含各项指标的字典,如 {'loss': 0.5, 'accuracy': 0.8}
+            prefix: 指标名称的前缀,用于区分不同阶段的指标:
+                   - 'train_': 训练集指标,如 'train_loss'
+                   - 'val_': 验证集指标,如 'val_accuracy'
         """
         metric_str = ', '.join([
             f"{prefix}{k}: {v:.4f}" if isinstance(v, float) else f"{prefix}{k}: {v}"
@@ -109,10 +147,13 @@ class Logger:
 
     def save_metrics(self, filepath: Optional[str] = None):
         """
-        Save metrics history to JSON file.
+        保存指标历史到JSON文件
+
+        将之前所有记录的指标保存为JSON格式的文件,方便后续分析或可视化。
+        JSON是一种轻量级的数据交换格式,易于阅读和处理。
 
         Args:
-            filepath: Path to save metrics (optional)
+            filepath: 保存路径,如果为None则自动生成带时间戳的文件名
         """
         if filepath is None:
             filepath = os.path.join(
@@ -127,10 +168,12 @@ class Logger:
 
     def log_config(self, config: Dict[str, Any]):
         """
-        Log configuration.
+        记录配置信息
+
+        在训练开始时记录超参数和配置,方便复现实验和调试。
 
         Args:
-            config: Configuration dictionary
+            config: 包含配置信息的字典,如 {'batch_size': 32, 'lr': 0.001}
         """
         self.info("Configuration:")
         for key, value in config.items():
@@ -142,14 +185,16 @@ def get_logger(
     name: str = 'biomamba',
 ) -> Logger:
     """
-    Get logger instance.
+    获取日志记录器实例的便捷函数
+
+    这是创建Logger对象的推荐方式,会自动配置好所有参数。
 
     Args:
-        log_dir: Directory to save logs
-        name: Logger name
+        log_dir: 日志文件保存的目录,默认'./logs'
+        name: 日志记录器名称,默认'biomamba'
 
     Returns:
-        Logger instance
+        配置好的Logger实例
     """
     return Logger(log_dir=log_dir, name=name)
 
