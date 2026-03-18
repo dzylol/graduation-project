@@ -1,0 +1,11 @@
+smiles,label
+CCO,1.5
+CC(C)C,2.3
+c1ccccc1,1.0
+c1ccc(O)cc1,2.8
+CC(=O)O,1.2
+CC(=O)OC,1.8
+c1ccncc1,0.5
+CCN,1.0
+CCOCC,2.0
+c1ccc2ccccc2c1,3.5

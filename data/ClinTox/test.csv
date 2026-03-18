@@ -1,0 +1,9 @@
+smiles,label
+c1ccc(cc1)C(=O)O,0
+c1ccc(cc1)CC(C)C,0
+c1ccc(cc1)Cc1ccccc1,0
+c1ccc(cc1)CC,0
+c1ccc(cc1)Nc1ccccc1CC,1
+CC(C)Nc1ccc(cc1)Cc2ccccc2,1
+c1ccc(cc1)CNc2ccccc2,1
+c1ccc2c(c1)cccc2NCc1ccccc1,1

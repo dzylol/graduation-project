@@ -1,0 +1,9 @@
+smiles,label
+c1ccc(cc1)OC,0.71
+c1ccc2c(c1)cccc2O,-0.12
+c1ccc2c(c1)cc(cc2)S(=O)(=O)O,-2.58
+c1ccc(cc1)C#N,0.14
+c1ccc(cc1)CCCCCCCC,2.89
+c1ccc(cc1)OCCO,0.08
+c1ccc(cc1)CCOC,1.06
+c1ccc(cc1)Cc2cccc(C)c2,1.12
