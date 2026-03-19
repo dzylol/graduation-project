@@ -2,6 +2,16 @@
 
 基于双向 Mamba 架构的分子性质预测模型，支持回归、分类和多任务学习。
 
+## 快速导航
+
+| 场景 | 命令 |
+|------|------|
+| [快速开始训练](#快速开始) | `python train.py --dataset ESOL --device mps` |
+| [运行测试](#代码测试) | `python tests/test_model.py` |
+| [NVIDIA GPU + Podman](#方式二使用-podman-容器测试推荐用于-nvidia-gpu) | `podman run --gpus all ...` |
+| [Apple Silicon / Conda](#方式三使用-conda-本地测试apple-silicon-或无-gpu) | `conda install pytorch -c pytorch` |
+| [评估模型](#模型评估) | `python eval.py --checkpoint checkpoints/...` |
+
 ## 新增功能 
 
 - **数据库管理** - SQLite 存储实验记录和分子数据
@@ -466,7 +476,132 @@ python train.py --batch_size 32
 python train.py --max_length 128
 ```
 
+### Q: Podman 无法访问 GPU？
+
+```bash
+# 1. 确认安装了 nvidia-container-toolkit
+# Linux: sudo apt-get install nvidia-container-toolkit
+# 然后: sudo systemctl restart podman
+
+# 2. 确认 nvidia-smi 可以正常显示
+nvidia-smi
+
+# 3. 如果仍然不行，使用 conda 本地测试
+conda install pytorch -c pytorch
+```
+
+### Q: Apple Silicon (M1/M2/M3) 运行出错？
+
+```bash
+# 1. 确保使用 conda 安装支持 MPS 的 PyTorch
+conda install pytorch torchvision torchaudio -c pytorch -y
+
+# 2. 验证 MPS 是否可用
+python -c "import torch; print(torch.backends.mps.is_available())"
+
+# 3. 如果 MPS 不可用，强制使用 CPU
+python train.py --device cpu --batch_size 4
+```
+
+### Q: RDKit 安装失败？
+
+```bash
+# 使用 conda 安装（推荐）
+conda install -c conda-forge rdkit -y
+
+# 或使用 pip
+pip install rdkit-pypi
+```
+
 ## 代码测试
+
+### 方式一：直接运行测试脚本
+
+```bash
+# 测试模型
+python tests/test_model.py
+
+# 测试数据处理
+python tests/test_data.py
+
+# 运行所有测试
+python -m pytest tests/ -v
+```
+
+### 方式二：使用 Podman 容器测试（推荐用于 NVIDIA GPU）
+
+**1. 检查是否有 NVIDIA 显卡**
+
+```bash
+# Linux/macOS
+nvidia-smi
+```
+
+如果显示类似以下内容，说明有 NVIDIA 显卡：
+```
++------------------------------------------------------------------+
+| NVIDIA-SMI 535.54.03    Driver Version: 535.54.03  CUDA Version: 12.2 |
++------------------------------------------------------------------+
+```
+
+**NVIDIA 显卡要求：**
+| 要求 | 最低版本 |
+|------|----------|
+| 驱动版本 | 525.60.13+ |
+| CUDA 工具包 | 11.6+ (推荐 12.x) |
+| 显存 | 2GB (小模型) / 8GB (大模型) |
+
+**2. 安装 Podman**
+
+```bash
+# macOS
+brew install podman
+
+# Ubuntu/Debian
+sudo apt-get install podman
+
+# Fedora
+sudo dnf install podman
+```
+
+**3. 运行容器测试**
+
+有 NVIDIA 显卡时：
+```bash
+podman run --rm \
+    --gpus all \
+    -v $(pwd):/workspace \
+    -w /workspace \
+    docker.io/pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime \
+    bash -c "pip install -r requirements.txt && python -m pytest tests/ -v"
+```
+
+### 方式三：使用 Conda 本地测试（Apple Silicon 或无 GPU）
+
+如果你的电脑是 Apple Silicon (M1/M2/M3) 或没有 NVIDIA 显卡，使用 conda：
+
+**1. 创建 conda 环境**
+
+```bash
+# 创建环境
+conda create -n bimamba python=3.10 -y
+conda activate bimamba
+
+# 安装 PyTorch (支持 MPS GPU 加速)
+conda install pytorch torchvision torchaudio -c pytorch -y
+
+# 安装其他依赖
+conda install -c conda-forge numpy pandas scikit-learn tqdm matplotlib -y
+conda install -c conda-forge rdkit -y
+```
+
+**2. 验证 MPS 可用性（Apple Silicon）**
+
+```bash
+python -c "import torch; print(f'MPS 可用: {torch.backends.mps.is_available()}')"
+```
+
+**3. 运行测试**
 
 ```bash
 # 测试模型
@@ -475,6 +610,26 @@ python tests/test_model.py
 # 测试数据处理
 python tests/test_data.py
 ```
+
+### 运行单个测试函数
+
+```bash
+# 使用 pytest（推荐）
+python -m pytest tests/test_data.py::test_tokenization -v
+
+# 或直接导入运行
+python -c "from tests.test_data import test_tokenization; test_tokenization()"
+```
+
+### 测试覆盖报告
+
+```bash
+pip install pytest pytest-cov
+python -m pytest tests/ --cov=src --cov-report=html
+# 报告生成在 htmlcov/index.html
+```
+
+---
 
 ## 许可证
 

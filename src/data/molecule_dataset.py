@@ -20,9 +20,8 @@ from torch.utils.data import Dataset
 from rdkit import Chem
 
 
-# ============================================================================
 # SMILES vocabulary (shared by MoleculeTokenizer and MoleculeDataset)
-# ============================================================================
+
 # 常见SMILES字符（包括原子符号、化学键、括号等）
 _SMILES_ELEMENTS: List[str] = [
     "(",  # 左括号
@@ -78,7 +77,13 @@ _SPECIAL_TOKENS: List[str] = ["<pad>", ">", "<bos>", "<eos>"]
 
 
 def _build_vocab() -> Dict[str, int]:
-    """构建SMILES字符到ID的映射词汇表。"""
+    """
+    构建SMILES字符到ID的映射词汇表。
+
+    返回类型注解 `-> Dict[str, int]` 说明这个函数返回一个字典：
+    - key: str类型（token字符串，如 "C", "<pad>"）
+    - value: int类型（对应的ID，如 0, 1, 2...）
+    """
     vocab: Dict[str, int] = {token: idx for idx, token in enumerate(_SPECIAL_TOKENS)}
     vocab.update(
         {char: idx + len(_SPECIAL_TOKENS) for idx, char in enumerate(_SMILES_ELEMENTS)}
@@ -91,9 +96,8 @@ _VOCAB: Dict[str, int] = _build_vocab()
 _VOCAB_SIZE: int = len(_VOCAB)
 
 
-# ============================================================================
-# MoleculeTokenizer class
-# ============================================================================
+# MoleculeTokenizer class //
+
 class MoleculeTokenizer:
     """
     独立的SMILES分词器类，提供encode/decode方法。
@@ -114,6 +118,11 @@ class MoleculeTokenizer:
 
         # 正向词汇表：token字符串 -> 整数ID
         # 反向词汇表：整数ID -> token字符串
+
+
+        # vocab.items() 返回字典所有键值对，格式: dict_items([(key1,val1), (key2,val2)...])
+        # 遍历时依次取出 (token, idx) 元组
+        # 字典推导式：交换key和value位置，原始 {"C":4, "N":5} -> 反向 {4:"C", 5:"N"}
         self.inverse_vocab: Dict[int, str] = {
             idx: token for token, idx in self.vocab.items()
         }
