@@ -98,9 +98,25 @@ _VOCAB_SIZE: int = len(_VOCAB)
 
 # MoleculeTokenizer class //
 
+
 class MoleculeTokenizer:
     """
     独立的SMILES分词器类，提供encode/decode方法。
+
+    类与对象的关系：
+    - 类(Class): 模板，定义有哪些属性(数据)和方法(函数)
+    - 对象(Object): 类的实例，通过类创建的具体个体
+    - self: 当前实例对象的引用，谁调用方法，self就是谁
+
+    属性的定义与访问：
+    - 定义: self.xxx = 值（在__init__等方法中）
+    - 访问: self.xxx（在类的任何方法中）
+    - 属性属于对象，每个实例的属性相互独立
+
+    示例：
+        tokenizer = MoleculeTokenizer()  # tokenizer是MoleculeTokenizer的对象
+        tokenizer.encode("CC")           # 调用encode方法，self指向tokenizer
+        tokenizer.inverse_vocab          # 访问inverse_vocab属性
     """
 
     def __init__(self, vocab_dict: Optional[Dict[str, int]] = None) -> None:
@@ -118,7 +134,6 @@ class MoleculeTokenizer:
 
         # 正向词汇表：token字符串 -> 整数ID
         # 反向词汇表：整数ID -> token字符串
-
 
         # vocab.items() 返回字典所有键值对，格式: dict_items([(key1,val1), (key2,val2)...])
         # 遍历时依次取出 (token, idx) 元组
@@ -157,8 +172,13 @@ class MoleculeTokenizer:
 
         # 处理序列长度：截断或填充到max_length
         if len(tokens) > max_length:
+            # 如果token数量超过max_length，截断多余部分
+            # tokens[:max_length] 取前max_length个元素
             tokens = tokens[:max_length]
         else:
+            # 如果token数量不足max_length，用<pad>填充到固定长度
+            # 例如: len(tokens)=10, max_length=20, 差10个padding
+            # [1,2,3] + [0]*2 -> [1,2,3,0,0]
             pad_token_id: int = self.vocab["<pad>"]
             tokens = tokens + [pad_token_id] * (max_length - len(tokens))
         return tokens
@@ -175,19 +195,17 @@ class MoleculeTokenizer:
         """
         tokens: List[str] = []
         for token_id in token_ids:
-            if token_id in self.inverse_vocab:
-                token: str = self.inverse_vocab[token_id]
-                # 解码时跳过特殊token
-                if token not in ["<pad>", ">", "<bos>", "<eos>"]:
-                    tokens.append(token)
-            else:
-                tokens.append("")
+            # 使用 dict.get()：key存在返回value，不存在返回默认值""
+            token: str = self.inverse_vocab.get(token_id, "")
+            # 解码时跳过特殊token（<pad>填充符、>分隔符、<bos>开始符、<eos>结束符）
+            if token not in ["<pad>", ">", "<bos>", "<eos>"]:
+                tokens.append(token)
         return "".join(tokens)
 
 
-# ============================================================================
 # MoleculeDataset class
-# ============================================================================
+
+
 class MoleculeDataset(Dataset):
     """
     分子数据集类,继承自PyTorch的Dataset基类。
@@ -244,43 +262,90 @@ class MoleculeDataset(Dataset):
         data: List[dict] = []
 
         # 根据文件扩展名加载数据
-        if data_path.endswith(".csv"):
-            # CSV格式：第一列为SMILES，后续列为标签
-            df = pd.read_csv(data_path)
-            smiles_col = df.columns[0]
-            label_cols = df.columns[1:] if len(df.columns) > 1 else []
+        # rfind(".") 找到最后一个"."的位置（防止文件名含多个点如 data.train.csv）
+        # data_path[位置:] 切片获取"."及之后的内容，即扩展名
+        # 如果无"."则返回空字符串""
 
-            for _, row in df.iterrows():
-                smiles = str(row[smiles_col])
-                if len(label_cols) > 0:
-                    labels = [float(row[col]) for col in label_cols]
-                else:
-                    labels = [0.0]
-                data.append({"smiles": smiles, "labels": labels})
-
-        elif data_path.endswith(".json"):
-            # JSON格式：{"smiles": "...", "labels": [...]}对象列表
-            with open(data_path, "r") as f:
-                data = json.load(f)
-
-        elif data_path.endswith(".txt"):
-            # TXT格式：每行"SMILES,label1,label2,..."
-            with open(data_path, "r") as f:
-                for line in f:
-                    parts = line.strip().split(",")
-                    if len(parts) >= 2:
-                        smiles = parts[0]
-                        labels = [float(x) for x in parts[1:]]
-                        data.append({"smiles": smiles, "labels": labels})
-                    else:
-                        data.append({"smiles": parts[0], "labels": [0.0]})
-
+        if "." in data_path:
+            file_extension = data_path[data_path.rfind(".") :]
         else:
-            raise ValueError(f"不支持的文件格式: {data_path}")
+            file_extension = ""
+
+        match file_extension:
+            case ".csv":
+                df = pd.read_csv(data_path)
+                # df.columns 是DataFrame的列名列表（如 ["smiles", "label", "weight"]）
+                # df.columns[0] 取第一列作为SMILES列
+                smiles_col = df.columns[0]
+
+                if len(df.columns) > 1:
+                    label_cols = df.columns[1:]  # 取2到最后一行作为labels
+                else:
+                    label_cols = []
+
+                # 向量化：一次性取出所有数据，避免逐行遍历
+                # df[smiles_col].tolist() 取出SMILES列，转为Python列表
+                smiles_list = df[smiles_col].astype(str).tolist()
+
+                if len(label_cols) > 0:
+                    # df[label_cols] 取出所有标签列，返回 DataFrame
+                    # .to_numpy 转成 numpy 数组
+                    # .tolist() 转成 Python 列表的列表
+                    labels_list = df[label_cols].to_numpy().tolist()
+                else:
+                    labels_list = [[0.0]] * len(smiles_list)
+
+                # zip 将多个列表按位置配对，如 zip([a,b], [1,2]) -> [(a,1), (b,2)]
+                # 例如：
+                #   smiles_list = ["CC", "CO", "CCC"]
+                #   labels_list = [[0.5], [0.8], [1.2]]
+                #   zip 结果: [("CC", [0.5]), ("CO", [0.8]), ("CCC", [1.2])]
+                # for 循环解包: for smiles, labels in zip(...)
+                #   第1次: smiles="CC", labels=[0.5]
+                #   第2次: smiles="CO", labels=[0.8]
+                #   第3次: smiles="CCC", labels=[1.2]
+                data = [
+                    {"smiles": smiles, "labels": labels}
+                    for smiles, labels in zip(smiles_list, labels_list)
+                ]
+
+            case ".json":
+                with open(data_path, "r") as file:
+                    data = json.load(file)
+
+            case ".txt":
+                # with open() 自动关闭文件，file 是文件对象
+                # "r" 表示只读模式
+                with open(data_path, "r") as file:
+                    # 遍历文件的每一行
+                    for line in file:
+                        # .strip() 去除首尾空白（换行符\n、空格等）
+                        # .split(",") 按逗号分割成列表
+                        # 例如: "CCO,0.5,0.3\n" -> ["CCO", "0.5", "0.3"]
+                        parts = line.strip().split(",")
+                        # 至少要有两列（SMILES 和 标签）
+                        if len(parts) >= 2:
+                            smiles = parts[0]  # 第一列是SMILES
+                            # parts[1:] 取第二列及之后的所有元素
+                            # [float(x) for x in ...] 将标签转为 float
+                            # 例如: ["0.5", "0.3"] -> [0.5, 0.3]
+                            labels = [float(x) for x in parts[1:]]
+                            data.append({"smiles": smiles, "labels": labels})
+                        else:
+                            # 只有一列（只有SMILES），标签用默认值0.0
+                            data.append({"smiles": parts[0], "labels": [0.0]})
+
+            case _:
+                raise ValueError(f"不支持的文件格式: {data_path}")
 
         # 如果启用验证，使用RDKit过滤无效SMILES
         if self.validate_smiles:
             original_len = len(data)
+            # 列表推导式：遍历 data 中的每个 item，过滤掉无效SMILES
+            # item 是字典，如 {"smiles": "CCO", "labels": [0.5]}
+            # item["smiles"] 通过键访问字典的值，取出 SMILES 字符串
+            # self._validate_smiles() 返回 True 表示有效，False 表示无效
+            # 列表推导式只保留返回 True 的 item
             data = [item for item in data if self._validate_smiles(item["smiles"])]
             if len(data) < original_len:
                 print(f"已过滤{original_len - len(data)}个无效SMILES字符串")
