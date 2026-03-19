@@ -8,22 +8,172 @@ This module provides functionality for:
 4. Creating PyTorch data loaders
 """
 
-# ============================================================================
-# Imports
-# ============================================================================
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import json
 import os
 import pandas as pd
-import numpy as np
 import torch
-from torch import Tensor  # PyTorch张量类型，用于模型输入输出
-from torch.utils.data import Dataset  # PyTorch数据集基类
+from torch import Tensor
+from torch.utils.data import Dataset
 
-# RDKit用于化学结构验证和SMILES处理
 from rdkit import Chem
-from rdkit.Chem import AllChem
+
+
+# ============================================================================
+# SMILES vocabulary (shared by MoleculeTokenizer and MoleculeDataset)
+# ============================================================================
+# 常见SMILES字符（包括原子符号、化学键、括号等）
+_SMILES_ELEMENTS: List[str] = [
+    "(",  # 左括号
+    ")",  # 右括号
+    "[",  # 左方括号
+    "]",  # 右方括号
+    "=",  # 双键
+    "#",  # 三键
+    "%",  # 环编号开始
+    "0",  # 环编号
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "+",  # 正电荷
+    "-",  # 负电荷/单键
+    "/",  # 立体化学信息
+    ".",  # 断键
+    ":",  # 芳香键
+    ";",  # 立体信息
+    "<",  # 特殊环开始
+    ">",  # 特殊环结束
+    "@",  # 立体化学标记
+    # 元素符号
+    "B",
+    "Br",  # 溴（双字符需优先匹配）
+    "C",
+    "Cl",  # 氯（双字符需优先匹配）
+    "F",
+    "H",
+    "I",
+    "N",
+    "O",
+    "P",
+    "S",
+    "Si",
+    "Te",
+    "Se",
+    "At",
+]
+
+# 特殊token（填充符、开始符、结束符等）
+_SPECIAL_TOKENS: List[str] = ["<pad>", ">", "<bos>", "<eos>"]
+# <pad> (Padding) 填充符
+# > (Separator) 分隔符。用于分隔不同类型的token。
+# <bos> (Beginning of Sequence) 开始序列
+# <eos> (End of Sequence) 结束序列
+
+
+def _build_vocab() -> Dict[str, int]:
+    """构建SMILES字符到ID的映射词汇表。"""
+    vocab: Dict[str, int] = {token: idx for idx, token in enumerate(_SPECIAL_TOKENS)}
+    vocab.update(
+        {char: idx + len(_SPECIAL_TOKENS) for idx, char in enumerate(_SMILES_ELEMENTS)}
+    )
+    return vocab
+
+
+# 全局词汇表（单例，所有实例共享）
+_VOCAB: Dict[str, int] = _build_vocab()
+_VOCAB_SIZE: int = len(_VOCAB)
+
+
+# ============================================================================
+# MoleculeTokenizer class
+# ============================================================================
+class MoleculeTokenizer:
+    """
+    独立的SMILES分词器类，提供encode/decode方法。
+    """
+
+    def __init__(self, vocab_dict: Optional[Dict[str, int]] = None) -> None:
+        """
+        初始化分词器。
+
+        Args:
+            vocab_dict: 可选的词汇表字典（token字符串 -> ID映射）
+        """
+        if vocab_dict is None:
+            # 使用全局默认词汇表
+            self.vocab: Dict[str, int] = _VOCAB
+        else:
+            self.vocab = vocab_dict
+
+        # 正向词汇表：token字符串 -> 整数ID
+        # 反向词汇表：整数ID -> token字符串
+        self.inverse_vocab: Dict[int, str] = {
+            idx: token for token, idx in self.vocab.items()
+        }
+        self.vocab_size: int = len(self.vocab)
+
+    def encode(self, smiles: str, max_length: int = 512) -> List[int]:
+        """
+        将SMILES字符串编码为token ID列表。
+
+        Args:
+            smiles: SMILES字符串
+            max_length: 输出序列的最大长度
+
+        Returns:
+            token ID列表
+        """
+        tokens: List[int] = []
+        i: int = 0
+        while i < len(smiles):
+            # 优先匹配双字符token（如"Br"、"Cl"）
+            if i + 1 < len(smiles) and smiles[i : i + 2] in self.vocab:
+                tokens.append(self.vocab[smiles[i : i + 2]])
+                i += 2
+            # 匹配单字符token
+            elif smiles[i] in self.vocab:
+                tokens.append(self.vocab[smiles[i]])
+                i += 1
+            # 未知字符用<pad>代替
+            else:
+                tokens.append(self.vocab["<pad>"])
+                i += 1
+
+        # 处理序列长度：截断或填充到max_length
+        if len(tokens) > max_length:
+            tokens = tokens[:max_length]
+        else:
+            pad_token_id: int = self.vocab["<pad>"]
+            tokens = tokens + [pad_token_id] * (max_length - len(tokens))
+        return tokens
+
+    def decode(self, token_ids: List[int]) -> str:
+        """
+        将token ID列表解码回SMILES字符串。
+
+        Args:
+            token_ids: token ID列表
+
+        Returns:
+            解码后的SMILES字符串
+        """
+        tokens: List[str] = []
+        for token_id in token_ids:
+            if token_id in self.inverse_vocab:
+                token: str = self.inverse_vocab[token_id]
+                # 解码时跳过特殊token
+                if token not in ["<pad>", ">", "<bos>", "<eos>"]:
+                    tokens.append(token)
+            else:
+                tokens.append("")
+        return "".join(tokens)
 
 
 # ============================================================================
@@ -31,7 +181,7 @@ from rdkit.Chem import AllChem
 # ============================================================================
 class MoleculeDataset(Dataset):
     """
-    分子数据集类,继承自PyTorch的--Dataset--基类。from torch.utils.data.Dataset
+    分子数据集类,继承自PyTorch的Dataset基类。
 
     - 加载CSV/JSON/TXT格式的分子数据
     - 使用RDKit验证SMILES字符串的有效性
@@ -44,8 +194,6 @@ class MoleculeDataset(Dataset):
         data_path: str,
         task_type: str = "regression",
         max_length: int = 512,
-        tokenizer: Optional[object] = None,
-        cache_smiles: bool = True,
         validate_smiles: bool = True,
     ) -> None:
         """
@@ -53,122 +201,23 @@ class MoleculeDataset(Dataset):
 
         Args:
             data_path: 数据文件路径（支持CSV、JSON、TXT格式）
-            task_twype: 任务类型（"regression"回归或"classification"分类）
+            task_type: 任务类型（"regression"回归或"classification"分类）
             max_length: 最大序列长度（超过此长度的序列会被截断）
-            tokenizer: 自定义分词器（默认为内置分词器）
-            cache_smiles: 是否缓存已处理的SMILES以加速读取
             validate_smiles: 是否使用RDKit验证SMILES字符串的有效性
         """
         self.task_type = task_type
         self.max_length = max_length
-        self.tokenizer = tokenizer
-        self.cache_smiles = cache_smiles
         self.validate_smiles = validate_smiles
 
-        # 初始化词汇表
-        self.vocab = self._init_vocab()
-        self.vocab_size = len(self.vocab)
+        # 使用全局共享词汇表
+        self.vocab = _VOCAB
+        self.vocab_size = _VOCAB_SIZE
 
         # 加载数据
         self.data = self._load_data(data_path)
 
-        # 初始化SMILES缓存（始终为字典，启用缓存时用于存储已处理的SMILES）
-        self.smiles_cache: Dict[str, List[int]] = {} if cache_smiles else {}
-
-    def _init_vocab(self) -> Dict[str, int]:
-        """
-        初始化SMILES字符到ID的映射词汇表。
-
-        Returns:
-            词汇表字典 {token: id}
-        """
-        # 常见SMILES字符（包括原子符号、化学键、括号等）
-        smiles_elements: List[str] = [
-            "(",  # 左括号
-            ")",  # 右括号
-            "[",  # 左方括号
-            "]",  # 右方括号
-            "=",  # 双键
-            "#",  # 三键
-            "%",  # 环编号开始
-            "0",  # 环编号
-            "1",
-            "2",
-            "3",
-            "4",
-            "5",
-            "6",
-            "7",
-            "8",
-            "9",
-            "+",  # 正电荷
-            "-",  # 负电荷/单键
-            "/",  # 立体化学信息
-            ".",  # 断键
-            ":",  # 芳香键
-            ";",  # 立体信息
-            "<",  # 特殊环开始
-            ">",  # 特殊环结束
-            "@",  # 立体化学标记
-            # 元素符号
-            "B",
-            "Br",  # 溴（双字符需优先匹配）
-            "C",
-            "Cl",  # 氯（双字符需优先匹配）
-            "F",
-            "H",
-            "I",
-            "N",
-            "O",
-            "P",
-            "S",
-            "Si",
-            "Te",
-            "Se",
-            "At",
-        ]
-
-        # 特殊token（填充符、开始符、结束符等）
-        special_tokens: List[str] = ["<pad>", ">", "<bos>", "<eos>"]
-        # <pad> (Padding) 填充符
-        # > (Separator) 分隔符。用于分隔不同类型的token。
-        # <bos> (Beginning of Sequence) 开始序列
-        # <eos> (End of Sequence) 结束序列
-
-        # 构建词汇表：特殊token在前，普通字符在后
-        vocab: Dict[str, int] = {token: idx for idx, token in enumerate(special_tokens)}
-        '''enumerate 是 Python 的一个内置函数，它的作用是**“边数数边取值”。
-        假设 special_tokens 是 ["<pad>", ">", "<bos>", "<eos>"],
-        那么 enumerate 会把它变成一组组带有编号的配对：
-
-        (0, "<pad>")
-
-        (1, ">")
-
-        (2, "<bos>")
-
-        (3, "<eos>")
-        token: idx:意思是“把字符(token)作为键(Key)，把编号(idx)作为值(Value)”。
-        '''
-        vocab.update(
-            {char: idx + len(special_tokens) for idx, char in enumerate(smiles_elements)}
-        )
-        '''offset = len(special_tokens) 
-
-# 2. 开始给化学符号排队
-# 我们用最原始的 range(len(...)) 方式来数数
-        for i in range(len(chars)):
-    # 取出当前的化学符号，比如 "(" 或 "C"
-            char = chars[i]
-    # 计算这个符号应该分配的 ID
-    # 逻辑：当前的序号 + 之前被占掉的位置
-            new_id = i + offset
-    # 把这个对应关系存进词汇表字典里
-    # 这行等价于 vocab.update(...)
-            vocab[char] = new_id
-    '''
-
-        return vocab
+        # SMILES缓存（始终为字典，启用时用于存储已处理的SMILES）
+        self.smiles_cache: Dict[str, List[int]] = {}
 
     def _load_data(self, data_path: str) -> List[dict]:
         """
@@ -183,8 +232,7 @@ class MoleculeDataset(Dataset):
         if not os.path.exists(data_path):
             raise FileNotFoundError(f"数据文件不存在: {data_path}")
 
-        data: List[dict] = []  #List: 说明 data 是一个列表（数组）。
-                               #[dict]: 说明这个列表里的每一个元素都必须是一个字典。
+        data: List[dict] = []
 
         # 根据文件扩展名加载数据
         if data_path.endswith(".csv"):
@@ -258,7 +306,7 @@ class MoleculeDataset(Dataset):
             token ID列表
         """
         # 优先检查缓存，避免重复分词
-        if self.cache_smiles and smiles in self.smiles_cache:
+        if smiles in self.smiles_cache:
             return self.smiles_cache[smiles]
 
         tokens: List[int] = []
@@ -287,8 +335,7 @@ class MoleculeDataset(Dataset):
             tokens = tokens + [pad_token] * (self.max_length - len(tokens))
 
         # 更新缓存
-        if self.cache_smiles:
-            self.smiles_cache[smiles] = tokens
+        self.smiles_cache[smiles] = tokens
 
         return tokens
 
@@ -344,8 +391,7 @@ def create_data_loaders(
     task_type: str = "regression",
     max_length: int = 512,
     num_workers: int = 4,
-    tokenizer: Optional[object] = None,
-) -> Tuple[torch.utils.data.DataLoader, ...]:
+) -> Tuple:
     """
     创建训练、验证和测试用的PyTorch DataLoader。
 
@@ -357,230 +403,32 @@ def create_data_loaders(
         task_type: 任务类型（"regression"或"classification"）
         max_length: 最大序列长度
         num_workers: 数据加载的工作进程数
-        tokenizer: 自定义分词器
 
     Returns:
         (train_loader, val_loader, test_loader)元组
     """
-    # 创建训练数据集和DataLoader
-    train_dataset = MoleculeDataset(
-        data_path=train_path,
-        task_type=task_type,
-        max_length=max_length,
-        tokenizer=tokenizer,
-    )
 
-    # 验证数据集（可选）
-    val_dataset: Optional[MoleculeDataset] = None
-    if val_path and os.path.exists(val_path):
-        val_dataset = MoleculeDataset(
-            data_path=val_path,
-            task_type=task_type,
-            max_length=max_length,
-            tokenizer=tokenizer,
+    def make_loader(path: str) -> torch.utils.data.DataLoader:
+        """为给定数据路径创建DataLoader。"""
+        dataset = MoleculeDataset(
+            data_path=path, task_type=task_type, max_length=max_length
         )
-
-    # 测试数据集（可选）
-    test_dataset: Optional[MoleculeDataset] = None
-    if test_path and os.path.exists(test_path):
-        test_dataset = MoleculeDataset(
-            data_path=test_path,
-            task_type=task_type,
-            max_length=max_length,
-            tokenizer=tokenizer,
-        )
-
-    # 创建DataLoader
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True,  # 训练时打乱数据
-        num_workers=num_workers,
-        pin_memory=True,  # 加速CPU到GPU的数据传输
-    )
-
-    val_loader: Optional[torch.utils.data.DataLoader] = None
-    if val_dataset is not None:
-        val_loader = torch.utils.data.DataLoader(
-            val_dataset,
+        return torch.utils.data.DataLoader(
+            dataset,
             batch_size=batch_size,
-            shuffle=False,  # 验证时不打乱
+            shuffle=(path == train_path),  # 训练时打乱，验证/测试不打乱
             num_workers=num_workers,
-            pin_memory=True,
+            pin_memory=True,  # 加速CPU到GPU的数据传输
         )
 
-    test_loader: Optional[torch.utils.data.DataLoader] = None
-    if test_dataset is not None:
-        test_loader = torch.utils.data.DataLoader(
-            test_dataset,
-            batch_size=batch_size,
-            shuffle=False,  # 测试时不打乱
-            num_workers=num_workers,
-            pin_memory=True,
-        )
+    train_loader = make_loader(train_path)
+
+    # 验证/测试数据集（可选，路径不存在时为None）
+    val_loader = (
+        make_loader(val_path) if val_path and os.path.exists(val_path) else None
+    )
+    test_loader = (
+        make_loader(test_path) if test_path and os.path.exists(test_path) else None
+    )
 
     return train_loader, val_loader, test_loader
-
-
-# ============================================================================
-# Collate function for dynamic padding
-# ============================================================================
-def collate_fn(batch):
-    """
-    自定义collate函数，用于处理变长序列的批量填充。
-
-    Args:
-        batch: (input_ids, labels)元组列表
-
-    Returns:
-        (input_ids_batch, labels_batch)元组
-    """
-    input_ids, labels = zip(*batch)
-
-    # 使用pad_sequence将不同长度的序列填充到相同长度
-    input_ids = torch.nn.utils.rnn.pad_sequence(
-        input_ids, batch_first=True, padding_value=0
-    )
-
-    # 堆叠标签张量
-    labels = torch.stack(labels, dim=0)
-
-    return input_ids, labels
-
-
-# ============================================================================
-# Independent tokenizer class
-# ============================================================================
-class MoleculeTokenizer:
-    """
-    独立的SMILES分词器类，提供encode/decode方法。
-
-    该类可单独使用，不依赖MoleculeDataset。
-    """
-
-    def __init__(self, vocab_dict: Optional[Dict[str, int]] = None) -> None:
-        """
-        初始化分词器。
-
-        Args:
-            vocab_dict: 可选的词汇表字典（token字符串 -> ID映射）
-        """
-        if vocab_dict is None:
-            # 使用默认词汇表
-            smiles_elements: List[str] = [
-                "(",
-                ")",
-                "[",
-                "]",
-                "=",
-                "#",
-                "%",
-                "0",
-                "1",
-                "2",
-                "3",
-                "4",
-                "5",
-                "6",
-                "7",
-                "8",
-                "9",
-                "+",
-                "-",
-                "/",
-                ".",
-                ":",
-                ";",
-                "<",
-                ">",
-                "@",
-                "B",
-                "Br",
-                "C",
-                "Cl",
-                "F",
-                "H",
-                "I",
-                "N",
-                "O",
-                "P",
-                "S",
-                "Si",
-                "Te",
-                "Se",
-                "At",
-            ]
-            special_tokens: List[str] = ["<pad>", ">", "<bos>", "<eos>"]
-
-            vocab_local: Dict[str, int] = {
-                token: idx for idx, token in enumerate(special_tokens)
-            }
-            vocab_local.update(
-                {char: idx + len(special_tokens) for idx, char in enumerate(smiles_elements)}
-            )
-        else:
-            vocab_local = vocab_dict
-
-        # 正向词汇表：token字符串 -> 整数ID
-        self.vocab: Dict[str, int] = vocab_local
-        # 反向词汇表：整数ID -> token字符串
-        self.inverse_vocab: Dict[int, str] = {
-            idx: token for token, idx in vocab_local.items()
-        }
-        self.vocab_size: int = len(vocab_local)
-
-    def encode(self, smiles: str, max_length: int = 512) -> List[int]:
-        """
-        将SMILES字符串编码为token ID列表。
-
-        Args:
-            smiles: SMILES字符串
-            max_length: 输出序列的最大长度
-
-        Returns:
-            token ID列表
-        """
-        tokens: List[int] = []
-        i: int = 0
-        while i < len(smiles):
-            # 优先匹配双字符token（如"Br"、"Cl"）
-            if i + 1 < len(smiles) and smiles[i : i + 2] in self.vocab:
-                tokens.append(self.vocab[smiles[i : i + 2]])
-                i += 2
-            # 匹配单字符token
-            elif smiles[i] in self.vocab:
-                tokens.append(self.vocab[smiles[i]])
-                i += 1
-            # 未知字符用<pad>代替
-            else:
-                tokens.append(self.vocab["<pad>"])
-                i += 1
-
-        # 处理序列长度
-        if len(tokens) > max_length:
-            tokens = tokens[:max_length]
-        else:
-            pad_token_id: int = self.vocab["<pad>"]
-            tokens = tokens + [pad_token_id] * (max_length - len(tokens))
-        return tokens
-
-    def decode(self, token_ids: List[int]) -> str:
-        """
-        将token ID列表解码回SMILES字符串。
-
-        Args:
-            token_ids: token ID列表
-
-        Returns:
-            解码后的SMILES字符串
-        """
-        tokens: List[str] = []
-        for token_id in token_ids:
-            if token_id in self.inverse_vocab:
-                token: str = self.inverse_vocab[token_id]
-                # 解码时跳过特殊token
-                if token not in ["<pad>", ">", "<bos>", "<eos>"]:
-                    tokens.append(token)
-            else:
-                tokens.append("")
-        return "".join(tokens)
