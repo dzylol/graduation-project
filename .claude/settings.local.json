@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(claude --mcp:*)",
+      "Bash(npm search:*)",
+      "Bash(claude mcp list)",
+      "Bash(npx -y @smithery/cli@latest run @JackKuo666/semanticscholar-mcp-server --config:*)",
+      "Bash(npx:*)",
+      "Bash(find:*)",
+      "Bash(curl:*)",
+      "Bash(npm install:*)",
+      "Bash(python3:*)",
+      "mcp__exa__web_search_exa",
+      "Bash(claude:*)",
+      "Bash(uvx:*)",
+      "mcp__tavily__tavily_extract",
+      "Bash(cd:*)",
+      "Skill(claude-dashboard:setup)",
+      "Read(//Users/ziyu/graduation project/**)",
+      "Bash(mv /Users/ziyu/.claude/settings.json.tmp /Users/ziyu/.claude/settings.json)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "semantic-scholar"
+  ]
+}

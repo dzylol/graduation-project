@@ -34,6 +34,8 @@ import json  # JSON 文件处理
 from typing import Dict, Any, Optional  # 类型提示
 import time  # 时间测量
 
+from src.db import ExperimentRepository
+
 # 导入本地模块
 from src.models.bimamba import BiMambaForPropertyPrediction, create_bimamba_model
 from src.data.molecule_dataset import (
@@ -171,6 +173,23 @@ def parse_args():
         "--save_interval", type=int, default=1000, help="保存检查点间隔（批次）"
     )
     parser.add_argument("--max_length", type=int, default=512, help="最大序列长度")
+    parser.add_argument(
+        "--db_path",
+        type=str,
+        default="bi_mamba_chem.db",
+        help="数据库路径",
+    )
+    parser.add_argument(
+        "--exp_name",
+        type=str,
+        default=None,
+        help="实验名称（默认为 {dataset}_{timestamp}）",
+    )
+    parser.add_argument(
+        "--no_db",
+        action="store_true",
+        help="禁用数据库记录",
+    )
 
     return parser.parse_args()
 
@@ -487,7 +506,39 @@ def main():
     logger.info(f"词汇表大小: {vocab_size}")
 
     # -------------------------------------------------------------------------
-    # 7. 创建模型
+    # 7. 初始化实验追踪数据库
+    # -------------------------------------------------------------------------
+    exp_repo = None
+    exp_id = None
+    if not args.no_db:
+        exp_repo = ExperimentRepository(db_path=args.db_path)
+        exp_name = args.exp_name or f"{args.dataset}_{int(time.time())}"
+        model_config = {
+            "d_model": args.d_model,
+            "n_layers": args.n_layers,
+            "pooling": args.pooling,
+            "dropout": args.dropout,
+            "vocab_size": vocab_size,
+        }
+        hyperparams = {
+            "batch_size": args.batch_size,
+            "learning_rate": args.learning_rate,
+            "weight_decay": args.weight_decay,
+            "warmup_epochs": args.warmup_epochs,
+            "max_grad_norm": args.max_grad_norm,
+            "gradient_accumulation_steps": args.gradient_accumulation_steps,
+        }
+        exp_id = exp_repo.create(
+            name=exp_name,
+            dataset=args.dataset,
+            tasks=[args.task_type],
+            model_config=model_config,
+            hyperparams=hyperparams,
+        )
+        logger.info(f"创建实验记录: ID={exp_id}, 名称={exp_name}")
+
+    # -------------------------------------------------------------------------
+    # 8. 创建模型
     # -------------------------------------------------------------------------
     logger.info("创建 BiMamba 模型")
     model = create_bimamba_model(
@@ -580,6 +631,19 @@ def main():
                 logger.info(f"  验证 {key.upper()}: {value:.6f}")
 
         # -------------------------------------------------------------------------
+        # 11. 记录到数据库
+        # -------------------------------------------------------------------------
+        if exp_repo and exp_id is not None:
+            epoch_log = {
+                "epoch": epoch + 1,
+                "train_loss": train_loss,
+                "val_loss": val_metrics.get("loss", 0),
+                "val_mae": val_metrics.get("mae", 0),
+                "val_rmse": val_metrics.get("rmse", 0),
+            }
+            exp_repo.append_training_log(exp_id, epoch_log)
+
+        # -------------------------------------------------------------------------
         # 12. 保存最佳模型
         # -------------------------------------------------------------------------
         if val_metrics["loss"] < best_val_loss:
@@ -619,12 +683,27 @@ def main():
     # -------------------------------------------------------------------------
     # 14. 最终测试
     # -------------------------------------------------------------------------
+    test_metrics = {}
     if test_loader:
         logger.info("在测试集上评估")
         test_metrics = evaluate(model, test_loader, device, args)
         logger.info(f"测试结果:")
         for key, value in test_metrics.items():
             logger.info(f"  {key.upper()}: {value:.6f}")
+
+    # -------------------------------------------------------------------------
+    # 15. 更新数据库记录
+    # -------------------------------------------------------------------------
+    if exp_repo and exp_id is not None:
+        final_metrics = {
+            "best_val_loss": best_val_loss,
+            "test_loss": test_metrics.get("loss", 0),
+            "test_mae": test_metrics.get("mae", 0),
+            "test_rmse": test_metrics.get("rmse", 0),
+            "test_auc": test_metrics.get("auc", 0),
+        }
+        exp_repo.complete(exp_id, final_metrics, best_epoch=epoch + 1)
+        logger.info(f"更新实验记录: ID={exp_id}, 状态=completed")
 
     logger.info("训练完成！")
 

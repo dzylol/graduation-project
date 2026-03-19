@@ -1,0 +1,2 @@
+2026-03-18 18:41:41,597 - __main__ - INFO - 使用设备: mps
+2026-03-18 18:41:41,597 - __main__ - INFO - 从 checkpoints/ESOL_bi_mamba_best.pt 加载模型

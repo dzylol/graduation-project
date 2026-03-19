@@ -50,9 +50,7 @@ def test_tokenizer():
     print("\n[步骤 1] 创建分词器")
     tokenizer = MoleculeTokenizer()
     print(f"  词汇表大小: {tokenizer.vocab_size}")
-    print(
-        f"  特殊 token: <pad>={tokenizer.vocab['<pad>']}, <unk>={tokenizer.vocab['<unk>']}"
-    )
+    print(f"  特殊 token: <pad>={tokenizer.vocab['<pad>']}")
 
     # -------------------------------------------------------------------------
     # 测试编码

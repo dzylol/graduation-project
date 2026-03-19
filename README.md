@@ -1,6 +1,13 @@
 # Bi-Mamba-Chem: 基于双向状态空间模型的分子性质预测
 
-基于双向 Mamba 架构的分子性质预测模型，支持回归和分类任务。
+基于双向 Mamba 架构的分子性质预测模型，支持回归、分类和多任务学习。
+
+## 新增功能 ✨
+
+- **数据库管理** - SQLite 存储实验记录和分子数据
+- **实验追踪** - 自动记录训练过程、对比实验结果
+- **多任务学习** - 同时预测多个分子属性
+- **可视化模块** - 训练曲线、预测散点图、分子结构可视化
 
 ## 环境配置
 
@@ -31,18 +38,32 @@ pip install -r requirements.txt
 .
 ├── src/
 │   ├── models/
-│   │   └── bimamba.py      # Bi-Mamba 模型实现
-│   └── data/
-│       └── molecule_dataset.py  # 数据处理工具
+│   │   ├── bimamba.py          # Bi-Mamba 模型实现
+│   │   └── multitask.py        # 多任务学习模型
+│   ├── data/
+│   │   ├── molecule_dataset.py    # 数据处理工具
+│   │   └── multitask_dataset.py  # 多任务数据集
+│   ├── db/                    # 数据库管理模块
+│   │   ├── database.py         # SQLite 连接
+│   │   ├── molecule_repo.py    # 分子数据 CRUD
+│   │   └── experiment_repo.py # 实验记录 CRUD
+│   └── visualization/          # 可视化模块
+│       ├── training_plots.py   # 训练曲线
+│       ├── prediction_plots.py # 预测散点图
+│       ├── molecule_plots.py   # 分子结构可视化
+│       └── dashboard.py        # 实验仪表盘
 ├── tests/
 │   ├── test_model.py       # 模型测试
 │   └── test_data.py        # 数据测试
+├── scripts/
+│   └── manage_experiments.py # 实验管理工具
 ├── data/
 │   ├── ESOL/              # ESOL 数据集（回归任务）
 │   ├── BBBP/              # BBBP 数据集（分类任务）
 │   └── ClinTox/           # ClinTox 数据集（分类任务）
 ├── checkpoints/           # 模型保存目录
-├── train.py               # 训练脚本
+├── train.py               # 单任务训练脚本
+├── train_multitask.py     # 多任务训练脚本
 ├── eval.py                # 评估脚本
 └── download_datasets.py   # 数据集下载脚本
 ```
@@ -99,7 +120,190 @@ python train.py \
     --device mps
 ```
 
-### 训练参数说明
+---
+
+## 数据库与实验追踪
+
+项目使用 SQLite 数据库自动记录训练过程和实验结果。
+
+### 数据库文件
+
+默认数据库文件：`bi_mamba_chem.db`
+
+### 实验管理命令
+
+```bash
+# 列出所有实验
+python scripts/manage_experiments.py --list
+
+# 列出特定状态的实验
+python scripts/manage_experiments.py --list --status completed
+
+# 查看实验详情
+python scripts/manage_experiments.py -d 1
+
+# 对比多个实验
+python scripts/manage_experiments.py -c 1 2 3
+
+# 删除实验
+python scripts/manage_experiments.py --delete 5
+```
+
+### 训练时自动记录
+
+训练时会自动记录：
+- 模型配置（维度、层数、池化方法）
+- 超参数（学习率、批大小等）
+- 每个 epoch 的训练/验证指标
+- 最终测试结果
+
+### 相关参数
+
+| 参数 | 说明 |
+|------|------|
+| `--db_path` | 数据库路径（默认：`bi_mamba_chem.db`） |
+| `--exp_name` | 实验名称（默认：自动生成） |
+| `--no_db` | 禁用数据库记录 |
+
+---
+
+## 多任务学习
+
+支持同时预测多个分子属性（回归或分类）。
+
+### 任务配置格式
+
+```
+task_name:type:weight
+```
+
+- `task_name`: 任务名称
+- `type`: `regression` 或 `classification`
+- `weight`: 损失权重（默认 1.0）
+
+### 多任务数据格式
+
+CSV 格式，第一列为 SMILES，后续列为各任务标签：
+
+```csv
+smiles,solubility,toxicity,logp
+CCO,-2.5,0,1.3
+CC(=O)OC,-1.8,1,0.5
+```
+
+### 多任务训练示例
+
+```bash
+python train_multitask.py \
+    --dataset multitask \
+    --data_dir ./data/multitask \
+    --tasks "solubility:regression:1.0,toxicity:classification:0.5,logp:regression:0.8" \
+    --epochs 100 \
+    --batch_size 16 \
+    --device mps
+```
+
+### 多任务参数
+
+| 参数 | 说明 |
+|------|------|
+| `--tasks` | 任务配置字符串（必需） |
+| `--task_strategy` | `shared`（共享头部）或 `separate`（独立头部） |
+| `--d_model` | 模型维度 |
+| `--n_layers` | 层数 |
+
+### 任务策略
+
+| 策略 | 说明 | 适用场景 |
+|------|------|----------|
+| `shared` | 共享多任务头部，学习任务关联 | 任务相关性强 |
+| `separate` | 每个任务独立预测头 | 任务相对独立 |
+
+---
+
+## 可视化模块
+
+提供丰富的训练过程和预测结果可视化功能。
+
+### 训练曲线
+
+```python
+from src.visualization import plot_training_curves, plot_metric_comparison
+
+# 从数据库加载并绘制训练曲线
+from src.visualization.training_plots import plot_experiment_training
+fig = plot_experiment_training(exp_id=1, save_path="training.png")
+
+# 或手动绘制
+logs = [{"epoch": 1, "train_loss": 0.5, "val_loss": 0.4}, ...]
+plot_training_curves(logs, save_path="curves.png")
+
+# 对比多个实验的指标
+results = {"exp1": {"mae": 0.1}, "exp2": {"mae": 0.15}}
+plot_metric_comparison(results, metric="mae")
+```
+
+### 预测结果可视化
+
+```python
+from src.visualization import plot_prediction_scatter, plot_residuals
+
+# 预测散点图
+plot_prediction_scatter(
+    y_true=y_true,
+    y_pred=y_pred,
+    task_name="ESOL",
+    save_path="scatter.png"
+)
+
+# 残差分析
+plot_residuals(y_true, y_pred, save_path="residuals.png")
+```
+
+### 分子结构可视化
+
+```python
+from src.visualization import draw_molecule, plot_molecule_grid
+
+# 绘制单个分子
+draw_molecule("CCO", legend="Ethanol", save_path="ethanol.png")
+
+# 绘制分子网格
+smiles_list = ["CCO", "CC(=O)OC", "c1ccccc1"]
+plot_molecule_grid(smiles_list, mols_per_row=3, save_path="molecules.png")
+```
+
+### 实验仪表盘
+
+```python
+from src.visualization import create_experiment_dashboard
+from src.visualization.dashboard import create_dashboard_from_db
+
+# 从数据库创建仪表盘
+create_dashboard_from_db(exp_ids=[1, 2, 3], save_path="dashboard.png")
+
+# 或手动创建
+experiments = [
+    {"name": "exp1", "metrics": {...}, "training_logs": [...]},
+    {"name": "exp2", "metrics": {...}, "training_logs": [...]},
+]
+create_experiment_dashboard(experiments, save_path="dashboard.png")
+```
+
+### 可视化功能汇总
+
+| 类型 | 功能 |
+|------|------|
+| 训练曲线 | 损失、MAE、RMSE 随 epoch 变化 |
+| 指标对比 | 多个实验的指标柱状图 |
+| 预测散点图 | 真实值 vs 预测值 |
+| 残差分析 | 残差分布和 QQ 图 |
+| 分子结构 | RDKit 渲染分子图 |
+| 实验仪表盘 | 综合对比面板 |
+
+---
+
+## 训练参数说明
 
 | 参数 | 默认值 | 说明 | 推荐值 |
 |------|--------|------|--------|
