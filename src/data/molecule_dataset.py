@@ -19,7 +19,7 @@ from torch.utils.data import Dataset
 from rdkit import Chem
 
 
-_SMILES_ELEMENTS: List[str] = [
+smiles_token_tuple: tuple[str, ...] = (
     "(",
     ")",
     "[",
@@ -61,44 +61,62 @@ _SMILES_ELEMENTS: List[str] = [
     "Te",
     "Se",
     "At",
-]
+)
 
-_SPECIAL_TOKENS: List[str] = ["<pad>", ">", "<bos>", "<eos>"]
+special_token_tuple: tuple[str, ...] = (
+    "<pad>",  # 填充标记
+    ">",  # 未知字符
+    "<bos>",  # 句子开始
+    "<eos>",  # 句子结束
+)
 
 
-def _build_vocab() -> Dict[str, int]:
-    vocab: Dict[str, int] = {token: idx for idx, token in enumerate(_SPECIAL_TOKENS)}
+def build_default_vocab() -> Dict[str, int]:
+    vocab: Dict[str, int] = {
+        token: idx for idx, token in enumerate(special_token_tuple)
+    }
     vocab.update(
-        {char: idx + len(_SPECIAL_TOKENS) for idx, char in enumerate(_SMILES_ELEMENTS)}
+        {
+            char: idx + len(smiles_token_tuple)
+            for idx, char in enumerate(smiles_token_tuple)
+        }
     )
-    return vocab
+    return vocab  # Dict[str, int]
 
 
-_VOCAB: Dict[str, int] = _build_vocab()
-_VOCAB_SIZE: int = len(_VOCAB)
+default_vocab: Dict[str, int] = build_default_vocab()
+default_vocab_size: int = len(default_vocab)
 
 
-@dataclass
-class MoleculeSample:
-    smiles: str
+@dataclass  # 开启简化class模式(只适合纯数据类（只有赋值）)
+class Data:  # 开头大写的是类名
+    smiles: str  # ---> self.smiles = smiles,下同
     labels: List[float]
 
 
 class MoleculeTokenizer:
     """SMILES分词器，提供encode/decode方法。"""
 
-    def __init__(self, vocab_dict: Optional[Dict[str, int]] = None) -> None:
-        if vocab_dict is None:
-            self.vocab: Dict[str, int] = _VOCAB
+    def __init__(  # 有 if-else 逻辑，无法简化。
+        self,
+        given_vocab_dict: Optional[
+            Dict[str, int]
+        ] = None,  # OptionalType 表示参数可以是 Type 或者 None，不传参数也不会报错
+    ) -> None:
+        if given_vocab_dict is None:
+            self.vocab: Dict[str, int] = default_vocab
         else:
-            self.vocab = vocab_dict
+            self.vocab = given_vocab_dict
         self.inverse_vocab: Dict[int, str] = {
             idx: token for token, idx in self.vocab.items()
         }
         self.vocab_size: int = len(self.vocab)
 
-    def encode(self, smiles: str, max_length: int = 512) -> List[int]:
-        return _tokenize_smiles(smiles, self.vocab, max_length)
+    def encode(self, smiles: str, max_length: int = 512) -> Tuple[int, ...]:
+        # id() 是 Python 内置函数，返回对象的内存地址（整数）。
+        return tokenize_smiles_cached_internal(
+            smiles, id(self.vocab), max_length
+        )  # 校验缓存是否命中
 
     def decode(self, token_ids: List[int]) -> str:
         tokens: List[str] = []
@@ -110,7 +128,7 @@ class MoleculeTokenizer:
 
 
 @functools.lru_cache(maxsize=500000)
-def _tokenize_smiles_cached(
+def tokenize_smiles_cached_internal(
     smiles: str, vocab_id: int, max_length: int
 ) -> Tuple[int, ...]:
     """Tokenize SMILES string with caching.
@@ -118,28 +136,25 @@ def _tokenize_smiles_cached(
     Note: vocab_id is passed to make cache key unique per vocab.
     Returns Tuple for hashability (required by lru_cache).
     """
-    vocab: Dict[str, int] = _VOCAB if vocab_id == id(_VOCAB) else {}
+    given_vocab_dict: Dict[str, int] = (
+        default_vocab if vocab_id == id(default_vocab) else {}
+    )
     tokens: List[int] = []
     i: int = 0
     while i < len(smiles):
-        if i + 1 < len(smiles) and smiles[i : i + 2] in vocab:
-            tokens.append(vocab[smiles[i : i + 2]])
+        if i + 1 < len(smiles) and smiles[i : i + 2] in given_vocab_dict:
+            tokens.append(given_vocab_dict[smiles[i : i + 2]])
             i += 2
-        elif smiles[i] in vocab:
-            tokens.append(vocab[smiles[i]])
+        elif smiles[i] in given_vocab_dict:
+            tokens.append(given_vocab_dict[smiles[i]])
             i += 1
         else:
-            tokens.append(vocab["<pad>"])
+            tokens.append(given_vocab_dict["<pad>"])
             i += 1
-    pad_token_id: int = vocab["<pad>"]
+    pad_token_id: int = given_vocab_dict["<pad>"]
     if len(tokens) > max_length:
         return tuple(tokens[:max_length])
     return tuple(tokens + [pad_token_id] * (max_length - len(tokens)))
-
-
-def _tokenize_smiles(smiles: str, vocab_id: int, max_length: int) -> List[int]:
-    """Tokenize SMILES string (wrapper for caching)."""
-    return list(_tokenize_smiles_cached(smiles, vocab_id, max_length))
 
 
 class MoleculeDataset(Dataset):
@@ -147,7 +162,7 @@ class MoleculeDataset(Dataset):
 
     def __init__(
         self,
-        data_path: str,
+        data_file_path: str,
         task_type: str = "regression",
         max_length: int = 512,
         validate_smiles: bool = True,
@@ -156,30 +171,10 @@ class MoleculeDataset(Dataset):
         self.max_length = max_length
         self.validate_smiles = validate_smiles
         self.tokenizer = MoleculeTokenizer()
-        self.vocab_id = id(_VOCAB)
-        self.data = self._load_data(data_path)
+        self.vocab_id = id(default_vocab)
+        self.data = self.load_data_internal(data_file_path)
 
-    def _load_data(self, data_path: str) -> List[MoleculeSample]:
-        if not os.path.exists(data_path):
-            raise FileNotFoundError(f"数据文件不存在: {data_path}")
-        file_extension = data_path[data_path.rfind(".") :] if "." in data_path else ""
-        match file_extension:
-            case ".csv":
-                data = self._load_csv(data_path)
-            case ".json":
-                data = self._load_json(data_path)
-            case ".txt":
-                data = self._load_txt(data_path)
-            case _:
-                raise ValueError(f"不支持的文件格式: {data_path}")
-        if self.validate_smiles:
-            original_len = len(data)
-            data = [item for item in data if _validate_smiles(item.smiles)]
-            if len(data) < original_len:
-                print(f"已过滤{original_len - len(data)}个无效SMILES字符串")
-        return data
-
-    def _load_csv(self, path: str) -> List[MoleculeSample]:
+    def load_csv_internal(self, path: str) -> List[Data]:
         df = pd.read_csv(path)
         smiles_col = df.columns[0]
         label_cols = df.columns[1:].tolist() if len(df.columns) > 1 else []
@@ -189,25 +184,22 @@ class MoleculeDataset(Dataset):
             if label_cols
             else [[0.0]] * len(smiles_list)
         )
-        return [
-            MoleculeSample(smiles=s, labels=l) for s, l in zip(smiles_list, labels_list)
-        ]
+        return [Data(smiles=s, labels=l) for s, l in zip(smiles_list, labels_list)]
 
-    def _load_json(self, path: str) -> List[MoleculeSample]:
+    def load_json_internal(self, path: str) -> List[Data]:
         with open(path, "r") as file:
-            raw_data = json.load(file)
+            json_raw_data = json.load(file)
         return [
-            MoleculeSample(smiles=item["smiles"], labels=item["labels"])
-            for item in raw_data
+            Data(smiles=item["smiles"], labels=item["labels"]) for item in json_raw_data
         ]
 
-    def _load_txt(self, path: str) -> List[MoleculeSample]:
-        data: List[MoleculeSample] = []
+    def load_txt_internal(self, path: str) -> List[Data]:
+        data: List[Data] = []
         with open(path, "r") as file:
             for line in file:
                 parts = line.strip().split(",")
                 data.append(
-                    MoleculeSample(
+                    Data(
                         smiles=parts[0],
                         labels=[float(x) for x in parts[1:]]
                         if len(parts) >= 2
@@ -216,13 +208,44 @@ class MoleculeDataset(Dataset):
                 )
         return data
 
-    def __len__(self) -> int:
+    def load_data_internal(self, data_file_path: str) -> List[Data]:
+        if not os.path.exists(data_file_path):
+            raise FileNotFoundError(f"数据文件不存在: {data_file_path}")
+        file_extension = (
+            data_file_path[data_file_path.rfind(".") :] if "." in data_file_path else ""
+        )
+        match file_extension:
+            case ".csv":
+                data = self.load_csv_internal(data_file_path)
+            case ".json":
+                data = self.load_json_internal(data_file_path)
+            case ".txt":
+                data = self.load_txt_internal(data_file_path)
+            case _:
+                raise ValueError(f"不支持的文件格式: {data_file_path}")
+        if self.validate_smiles:
+            original_len = len(data)
+            data = [item for item in data if validate_smiles_internal(item.smiles)]
+            if len(data) < original_len:
+                print(f"已过滤{original_len - len(data)}个无效SMILES字符串")
+        return data
+
+    def __len__(self) -> int:  # 让对象支持 len() 函数，返回数据集的样本数量。
         return len(self.data)
 
-    def __getitem__(self, idx: int) -> Tuple[Tensor, Tensor]:
+    def __getitem__(
+        self, idx: int
+    ) -> Tuple[Tensor, Tensor]:  # 让对象支持索引操作，返回指定索引的样本。
         item = self.data[idx]
-        token_ids = _tokenize_smiles(item.smiles, self.vocab_id, self.max_length)
+        # 将 SMILES 字符串转换为 token 整数序列（字符->整数映射），不足 max_length 的用 <pad> 填充
+        token_ids = tokenize_smiles_cached_internal(
+            item.smiles,  # SMILES 字符串，如 "CCO"
+            self.vocab_id,  # 词汇表 ID，用于缓存
+            self.max_length,  # 最大长度，不足则 padding
+        )
+        # 将 token 整数序列转换为 PyTorch Tensor（long 类型用于 embedding 查找）
         input_ids = torch.tensor(token_ids, dtype=torch.long)
+        # 标签类型根据任务类型决定：回归用 float（连续值）:溶解度、毒性数值，分类用 long（离散类别）比如是否有毒
         labels_tensor = torch.tensor(
             item.labels,
             dtype=torch.float if self.task_type == "regression" else torch.long,
@@ -236,7 +259,7 @@ class MoleculeDataset(Dataset):
         return self.tokenizer.vocab["<pad>"]
 
 
-def _validate_smiles(smiles: str) -> bool:
+def validate_smiles_internal(smiles: str) -> bool:
     """Validate SMILES string using RDKit."""
     try:
         mol = Chem.MolFromSmiles(smiles)
@@ -254,22 +277,42 @@ def create_data_loaders(
     max_length: int = 512,
     num_workers: int = 4,
 ) -> Tuple:
+    """创建训练/验证/测试数据加载器。
+
+    Args:
+        train_path: 训练集文件路径（必需）
+        val_path: 验证集文件路径（可选）
+        test_path: 测试集文件路径（可选）
+        batch_size: 每批样本数，默认 32
+        task_type: 任务类型，"regression" 或 "classification"
+        max_length: SMILES token 序列最大长度
+        num_workers: 数据加载的进程数
+
+    Returns:
+        (train_loader, val_loader, test_loader) 元组
+    """
+
     def make_loader(path: str) -> torch.utils.data.DataLoader:
+        """根据文件路径创建 DataLoader（内部函数）。"""
         dataset = MoleculeDataset(
-            data_path=path, task_type=task_type, max_length=max_length
+            data_file_path=path, task_type=task_type, max_length=max_length
         )
         return torch.utils.data.DataLoader(
             dataset,
             batch_size=batch_size,
+            # 训练集打乱以增加泛化能力，验证/测试集不打乱以保证顺序可复现
             shuffle=(path == train_path),
             num_workers=num_workers,
-            pin_memory=True,
+            pin_memory=True,  # 锁页内存，加速 CPU→GPU 数据传输
         )
 
+    # 训练集：必须存在
     train_loader = make_loader(train_path)
+    # 验证集：可选，检查路径是否存在
     val_loader = (
         make_loader(val_path) if val_path and os.path.exists(val_path) else None
     )
+    # 测试集：可选，检查路径是否存在
     test_loader = (
         make_loader(test_path) if test_path and os.path.exists(test_path) else None
     )

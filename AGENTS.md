@@ -57,8 +57,8 @@ from src.models.bimamba import BiMambaForPropertyPrediction
 |------|------------|---------|
 | Classes | PascalCase | `BiMambaBlock` |
 | Functions/methods | snake_case | `create_bimamba_model` |
-| Constants | UPPER_SNAKE_CASE | `MAX_LENGTH = 512` |
-| Module-level private | `_prefix` | `_validate_smiles` |
+| Constants | snake_case | `max_length = 512` |
+| Module-level private | `_internal` suffix | `validate_smiles_internal` |
 | Test functions | `test_` prefix | `test_model_forward_pass` |
 
 ### Type Hints (Required)
