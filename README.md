@@ -49,10 +49,8 @@ pip install -r requirements.txt
 ├── src/
 │   ├── models/
 │   │   ├── bimamba.py          # Bi-Mamba 模型实现
-│   │   └── multitask.py        # 多任务学习模型
 │   ├── data/
 │   │   ├── molecule_dataset.py    # 数据处理工具
-│   │   └── multitask_dataset.py  # 多任务数据集
 │   ├── db/                    # 数据库管理模块
 │   │   ├── database.py         # SQLite 连接
 │   │   ├── molecule_repo.py    # 分子数据 CRUD
@@ -136,9 +134,39 @@ python train.py \
 
 项目使用 SQLite 数据库自动记录训练过程和实验结果。
 
-### 数据库文件
+### 数据库文件位置
 
-默认数据库文件：`bi_mamba_chem.db`
+数据库文件位于：`src/data/database/` 目录
+
+```
+src/data/database/
+├── experiment1.db
+├── experiment2.db
+└── ...
+```
+
+### 交互式选择数据库
+
+训练时可以选择数据库：
+
+```bash
+# 交互式选择（默认）- 会列出 src/data/database/ 下所有 .db 文件
+python train.py --dataset ESOL
+
+# 输出示例：
+# 可用数据库：
+#   [1] experiment1.db
+#   [2] experiment2.db
+# 请选择数据库编号: 1
+```
+
+### 相关参数
+
+| 参数 | 说明 |
+|------|------|
+| `--db_path interactive` | 交互式选择数据库（默认） |
+| `--db_path my_db.db` | 指定数据库文件 |
+| `--no_db` | 禁用数据库记录 |
 
 ### 实验管理命令
 
@@ -166,14 +194,6 @@ python scripts/manage_experiments.py --delete 5
 - 超参数（学习率、批大小等）
 - 每个 epoch 的训练/验证指标
 - 最终测试结果
-
-### 相关参数
-
-| 参数 | 说明 |
-|------|------|
-| `--db_path` | 数据库路径（默认：`bi_mamba_chem.db`） |
-| `--exp_name` | 实验名称（默认：自动生成） |
-| `--no_db` | 禁用数据库记录 |
 
 ---
 

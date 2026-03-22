@@ -317,3 +317,58 @@ def create_data_loaders(
         make_loader(test_path) if test_path and os.path.exists(test_path) else None
     )
     return train_loader, val_loader, test_loader
+
+
+def list_available_databases(
+    database_dir: str = "src/data/database",
+) -> list[str]:
+    """列出数据库目录中的所有可用数据库文件。
+
+    Args:
+        database_dir: 数据库文件夹路径
+
+    Returns:
+        数据库文件路径列表
+    """
+    if not os.path.exists(database_dir):
+        return []
+    return sorted(
+        [
+            os.path.join(database_dir, f)
+            for f in os.listdir(database_dir)
+            if f.endswith(".db")
+        ]
+    )
+
+
+def select_database(
+    database_dir: str = "src/data/database",
+) -> str:
+    """交互式选择数据库文件。
+
+    Args:
+        database_dir: 数据库文件夹路径
+
+    Returns:
+        选择的数据库文件路径
+
+    Raises:
+        FileNotFoundError: 没有找到任何数据库文件
+    """
+    db_files = list_available_databases(database_dir)
+
+    if not db_files:
+        raise FileNotFoundError(f"数据库目录为空或不存在: {database_dir}")
+
+    print("可用数据库：")
+    for i, db_path in enumerate(db_files, 1):
+        print(f"  [{i}] {os.path.basename(db_path)}")
+
+    while True:
+        try:
+            choice = int(input("\n请选择数据库编号: "))
+            if 1 <= choice <= len(db_files):
+                return db_files[choice - 1]
+            print(f"无效选择，请输入 1-{len(db_files)}")
+        except ValueError:
+            print("请输入有效数字")

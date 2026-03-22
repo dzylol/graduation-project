@@ -1,42 +1,147 @@
 """
 Bi-Mamba 模型实现 - 分子性质预测
 
-Mamba 是一种状态空间模型（State Space Model），计算复杂度为 O(N)，
-比 Transformer 的 O(N^2) 更适合处理长分子序列。
+使用 mamba_ssm 库的优化实现，包含：
+- 并行扫描算法（比循环快）
+- HiPPO 矩阵初始化（最优的状态空间初始化）
+- 融合的卷积和 SSM 操作
+
+================================================================================
+Mamba 状态空间模型矩阵计算详解
+================================================================================
+
+【选择性状态空间模型 (Selective SSM)】
+
+Mamba 的核心是选择性状态空间模型，用以下方程描述：
+
+    h_{t} = A @ h_{t-1} + B @ x_{t}      (状态更新)
+    y_{t} = C @ h_{t}                      (输出)
+
+其中：
+    x_{t} : 输入向量 (d_inner 维)
+    h_{t} : 隐藏状态向量 (d_state 维)
+    y_{t} : 输出向量 (d_inner 维)
+    A     : 状态转移矩阵 (d_inner, d_state)
+    B     : 输入矩阵 (d_inner, d_state)
+    C     : 输出矩阵 (d_inner, d_state)
+
+【为什么需要离散化？】
+
+状态空间模型诞生于控制理论，最初是连续时间形式：
+
+    dh/dt = A @ h + B @ x      (连续微分方程)
+     y    = C @ h                (连续输出)
+
+计算机处理的是离散序列，需要把连续方程转为离散方程：
+
+    连续: dh/dt = A @ h + B @ x
+    离散: h_{t} = dA @ h_{t-1} + dB @ x_{t}
+
+【离散化数学推导】
+
+用欧拉方法近似导数（Δt → dt）：
+
+    dh/dt ≈ (h_{t} - h_{t-1}) / dt
+
+    代入连续方程:
+    (h_{t} - h_{t-1}) / dt = A @ h_{t-1} + B @ x_{t}
+    h_{t} - h_{t-1} = dt @ A @ h_{t-1} + dt @ B @ x_{t}
+    h_{t} = (I + dt @ A) @ h_{t-1} + dt @ B @ x_{t}
+
+但 Mamba 用指数离散化（更稳定）：
+
+    dA = exp(dt @ A)               # 矩阵指数
+    dB = dt @ B                     # 直接缩放
+
+【代码对应】
+
+    dt = softplus(dt_proj(x))      # softplus 保证 dt > 0
+    dA = exp(dt * A)               # A 是预先初始化好的（HiPPO）
+    dB = dt * B                    # B 也是输入相关的（选择性）
+
+    h_new = dA * h_old + dB * x    # 状态更新
+
+【选择性机制 (Selection)】
+
+Mamba 的核心创新：dt, B, C 是输入相关的（由 x 通过 x_proj 生成）
+
+    x_proj(x) → [dt_proj, B_proj, C_proj] → dt, B, C
+
+这使得模型可以"选择性"地记住或遗忘信息。
+
+【并行扫描 (Parallel Scan)】
+
+原始 RNN 需要顺序计算（O(N) 串行），Mamba 用并行扫描实现 O(N) 并行：
+
+    序列: x_{0}, x_{1}, x_{2}, ..., x_{N}
+
+    并行扫描将递归转化为：
+        - 计算各时间步的 dA, dB（可并行）
+        - 用并行扫描累积状态（类似前缀和）
+
+【HiPPO 矩阵初始化】
+
+A 矩阵用 HiPPO (High-order Polynomial Projection Operator) 初始化：
+
+    A[i,j] ∝ -(i+1) if i >= j else 0     # 或其他复杂形式
+
+这使得初始状态可以很好地近似历史信息的压缩。
+
+【完整前向传播流程】
+
+    输入: x (B, L, d_model)
+
+    1. in_proj: x → [x, z]  (d_model → d_inner * 2)
+    2. conv1d:  x → local_x (因果卷积，捕获局部依赖)
+    3. x_proj:  local_x → [dt, B, C]  (选择性)
+    4. SSM:     并行扫描计算 y
+    5. 门控:    y = y * silu(z)
+    6. out_proj: y → output (d_inner → d_model)
+
+【双向 Mamba】
+
+Bi-Mamba 同时建模前向和后向：
+
+    forward:  x_{0} → x_{1} → x_{2} → ... → x_{N}
+    backward: x_{N} ← x_{N-1} ← x_{N-2} ← ... ← x_{0}
+
+    最后用 fusion_gate 融合双向表示：
+
+        combined = concat([forward, backward])
+        gate = sigmoid(fusion_gate(combined))
+        output = gate_f * forward + gate_b * backward
+
+================================================================================
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, Tuple, Union
-import math
+from mamba_ssm import Mamba2
 
 
 class BiMambaBlock(nn.Module):
     """
-    双向 Mamba 块 - 选择性状态空间模型核心组件。
+    双向 Mamba 块 - 基于 mamba_ssm 的 Mamba2 实现。
 
-    包含：输入投影、一维卷积、选择性扫描、门控机制、输出投影。
+    Mamba2 核心特性：
+    - 选择性状态空间模型（Selective SSM）
+    - 并行扫描算法（parallel scan）- O(N) 复杂度
+    - HiPPO 矩阵初始化 - 最优的 state 初始化
+    - 硬件感知的融合操作
     """
 
     def __init__(
         self,
-        d_model: int,
-        d_state: int = 16,
-        d_conv: int = 4,
-        expand: int = 2,
-        dt_rank: Union[int, str] = "auto",
-        dt_min: float = 0.001,
-        dt_max: float = 0.1,
-        dt_init: str = "random",
-        dt_scale: float = 1.0,
-        dt_init_floor: float = 1e-4,
-        conv_bias: bool = True,
-        bias: bool = False,
-        use_fast_path: bool = True,
-        layer_idx: Optional[int] = None,
-        device: Optional[str] = None,
-        dtype: Optional[torch.dtype] = None,
+        d_model: int,  # 模型隐藏层维度（输入输出维度）
+        d_state: int = 64,  # SSM 状态维度，通常 64 或 128
+        d_conv: int = 4,  # 局部卷积核宽度，用于捕获局部依赖
+        expand: int = 2,  # 块扩展因子，控制内部维度（d_inner = expand * d_model）
+        use_fast_path: bool = True,  # 是否使用融合 kernel（需要 mamba_ssm 编译安装）
+        layer_idx: Optional[int] = None,  # 层索引，用于调试和记录
+        device: Optional[str] = None,  # 设备（cuda/mps/cpu）
+        dtype: Optional[torch.dtype] = None,  # 数据类型（float32/float16）
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
@@ -45,69 +150,16 @@ class BiMambaBlock(nn.Module):
         self.d_state = d_state
         self.d_conv = d_conv
         self.expand = expand
-        self.d_inner = int(self.expand * self.d_model)
-        self.dt_rank = (
-            math.ceil(self.d_model / 16) if dt_rank == "auto" else int(dt_rank)
-        )
         self.use_fast_path = use_fast_path
         self.layer_idx = layer_idx
 
-        self.in_proj = nn.Linear(
-            self.d_model, self.d_inner * 2, bias=bias, **factory_kwargs
-        )
-
-        self.conv1d = nn.Conv1d(
-            in_channels=self.d_inner,
-            out_channels=self.d_inner,
-            bias=conv_bias,
-            kernel_size=d_conv,
-            groups=self.d_inner,
-            padding=d_conv - 1,
+        self.mamba = Mamba2(
+            d_model=d_model,
+            d_state=d_state,
+            d_conv=d_conv,
+            expand=expand,
             **factory_kwargs,
         )
-
-        self.activation = nn.SiLU()
-
-        self.x_proj = nn.Linear(
-            self.d_inner, self.dt_rank + self.d_state * 2, bias=False, **factory_kwargs
-        )
-        self.dt_proj = nn.Linear(
-            self.dt_rank, self.d_inner, bias=True, **factory_kwargs
-        )
-
-        dt_init_std = self.dt_rank**-0.5 * dt_scale
-        if dt_init == "constant":
-            nn.init.constant_(self.dt_proj.weight, dt_init_std)
-        elif dt_init == "random":
-            nn.init.uniform_(self.dt_proj.weight, -dt_init_std, dt_init_std)
-        else:
-            raise NotImplementedError(f"未知的 dt_init 类型: {dt_init}")
-
-        self._init_dt_proj_bias(dt_min, dt_max, dt_init_floor, factory_kwargs)
-
-        A = torch.arange(1, self.d_state + 1, dtype=torch.float32)
-        if device is not None:
-            A = A.to(device)
-        A = A.repeat(self.d_inner, 1).contiguous()
-        A_log = torch.log(A)
-        self.A_log = nn.Parameter(A_log)
-
-        self.D = nn.Parameter(torch.ones(self.d_inner, **factory_kwargs))
-
-        self.out_proj = nn.Linear(
-            self.d_inner, self.d_model, bias=bias, **factory_kwargs
-        )
-
-    def _init_dt_proj_bias(self, dt_min, dt_max, dt_init_floor, factory_kwargs):
-        dt = torch.exp(
-            torch.rand(self.d_inner, **factory_kwargs)
-            * (math.log(dt_max) - math.log(dt_min))
-            + math.log(dt_min)
-        ).clamp(min=dt_init_floor)
-        inv_dt = dt + torch.log(-torch.expm1(-dt))
-        with torch.no_grad():
-            self.dt_proj.bias.copy_(inv_dt)
-        self.dt_proj.bias._no_reinit = True
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         """
@@ -119,100 +171,7 @@ class BiMambaBlock(nn.Module):
         Returns:
             output: (B, L, D)
         """
-        batch, seqlen, dim = hidden_states.shape
-
-        xz = self.in_proj(hidden_states)
-        x, z = xz.chunk(2, dim=-1)
-
-        x = x.transpose(1, 2)
-        x = self.conv1d(x)[:, :, :seqlen]
-        x = x.transpose(1, 2)
-
-        x = self.activation(x)
-        y = self.ssm(x)
-        y = y * F.silu(z)
-
-        output = self.out_proj(y)
-        return output
-
-    def ssm(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        状态空间模型（选择性扫描）。
-
-        Args:
-            x: (B, L, d_inner)
-
-        Returns:
-            y: (B, L, d_inner)
-        """
-        x_dbl = self.x_proj(x)
-        dt, B, C = torch.split(
-            x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1
-        )
-        dt = self.dt_proj(dt)
-        dt = F.softplus(dt)
-        y = self.selective_scan(x, dt, B, C)
-        return y
-
-    def _discretize(self, dt: torch.Tensor, B: torch.Tensor, A: torch.Tensor):
-        dt_clamped = torch.clamp(dt, min=-10, max=10)
-        dA = torch.exp(
-            torch.clamp(dt_clamped.unsqueeze(-1) * A.unsqueeze(0), min=-50, max=50)
-        )
-        dB = dt_clamped.unsqueeze(-1) * B.unsqueeze(1)
-        return dA, dB
-
-    def _single_step(
-        self,
-        h: torch.Tensor,
-        dt_t: torch.Tensor,
-        B_t: torch.Tensor,
-        C_t: torch.Tensor,
-        x_t: torch.Tensor,
-        A: torch.Tensor,
-    ) -> torch.Tensor:
-        dA, dB = self._discretize(dt_t, B_t, A)
-        x_t_clamped = torch.clamp(x_t, min=-10, max=10)
-        h_new = torch.einsum("bdn,bdk->bdk", dA, h) + dB * x_t_clamped.unsqueeze(-1)
-        h_new = torch.clamp(h_new, min=-100, max=100)
-        y_t = torch.sum(h_new * C_t.unsqueeze(1), dim=2)
-        return y_t, h_new
-
-    def selective_scan(
-        self, x: torch.Tensor, dt: torch.Tensor, B: torch.Tensor, C: torch.Tensor
-    ) -> torch.Tensor:
-        """
-        选择性扫描：依赖输入的状态更新机制。
-
-        离散化: dA = exp(dt * A), dB = dt * B
-        状态更新: h_new = dA * h + dB * x
-        输出: y = C * h_new
-
-        Args:
-            x: (B, L, d_inner)
-            dt: (B, L, d_inner)
-            B: (B, L, d_state)
-            C: (B, L, d_state)
-
-        Returns:
-            y: (B, L, d_inner)
-        """
-        batch, seqlen, dim = x.shape
-        A = -torch.exp(self.A_log)
-        D = self.D
-
-        h = torch.zeros(batch, dim, self.d_state, device=x.device, dtype=x.dtype)
-        outputs = []
-
-        for t in range(seqlen):
-            y_t, h = self._single_step(
-                h, dt[:, t, :], B[:, t, :], C[:, t, :], x[:, t, :], A
-            )
-            outputs.append(y_t)
-
-        y = torch.stack(outputs, dim=1)
-        y = y + x * D.unsqueeze(0)
-        return y
+        return self.mamba(hidden_states)
 
 
 class BiMambaEncoder(nn.Module):
@@ -225,7 +184,7 @@ class BiMambaEncoder(nn.Module):
         vocab_size: int,
         d_model: int = 256,
         n_layers: int = 4,
-        d_state: int = 16,
+        d_state: int = 64,
         d_conv: int = 4,
         expand: int = 2,
         max_seq_length: int = 512,
@@ -330,7 +289,7 @@ class BiMambaForPropertyPrediction(nn.Module):
         vocab_size: int,
         d_model: int = 256,
         n_layers: int = 4,
-        d_state: int = 16,
+        d_state: int = 64,
         d_conv: int = 4,
         expand: int = 2,
         max_seq_length: int = 512,

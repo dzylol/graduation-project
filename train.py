@@ -42,6 +42,7 @@ from src.data.molecule_dataset import (
     MoleculeDataset,
     create_data_loaders,
     MoleculeTokenizer,
+    select_database,
 )
 
 # ============================================================================
@@ -176,8 +177,8 @@ def parse_args():
     parser.add_argument(
         "--db_path",
         type=str,
-        default="bi_mamba_chem.db",
-        help="数据库路径",
+        default="interactive",
+        help="数据库路径（默认 interactive 会让用户选择）",
     )
     parser.add_argument(
         "--exp_name",
@@ -511,7 +512,12 @@ def main():
     exp_repo = None
     exp_id = None
     if not args.no_db:
-        exp_repo = ExperimentRepository(db_path=args.db_path)
+        if args.db_path == "interactive":
+            db_path = select_database()
+            logger.info(f"选择数据库: {db_path}")
+        else:
+            db_path = args.db_path
+        exp_repo = ExperimentRepository(db_path=db_path)
         exp_name = args.exp_name or f"{args.dataset}_{int(time.time())}"
         model_config = {
             "d_model": args.d_model,
