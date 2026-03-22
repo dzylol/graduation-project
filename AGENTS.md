@@ -13,25 +13,27 @@ pip install -r requirements.txt
 
 ### Testing (Run First)
 ```bash
-# All tests
+# All tests with pytest
 python -m pytest tests/ -v
 
 # Single test file
-python tests/test_model.py
-python tests/test_data.py
+python -m pytest tests/test_model.py -v
 
-# Single test function (pytest)
+# Single test function (2 ways)
 python -m pytest tests/test_data.py::test_tokenization -v
-
-# Single test function (direct import)
 python -c "from tests.test_data import test_tokenization; test_tokenization()"
+
+# With coverage report
+pip install pytest pytest-cov
+python -m pytest tests/ --cov=src --cov-report=term-missing
 ```
 
 ### Linting & Type Checking
 ```bash
-ruff check src/ tests/
-ruff format src/ tests/
-mypy src/
+ruff check src/ tests/          # Lint
+ruff format src/ tests/         # Format
+mypy src/                       # Type check
+bandit -r src/                  # Security scan
 ```
 
 ## Code Style
@@ -102,6 +104,34 @@ raise FileNotFoundError(f"Dataset not found: {data_path}")
 raise RuntimeError(f"Model forward pass failed: {e}")
 ```
 
+### Python Patterns
+
+**Dataclasses as DTOs (preferred over dicts):**
+```python
+from dataclasses import dataclass
+
+@dataclass
+class TrainingConfig:
+    learning_rate: float
+    batch_size: int
+    epochs: int = 10
+
+@dataclass(frozen=True)  # immutable
+class ModelConfig:
+    d_model: int
+    n_layers: int
+    vocab_size: int
+```
+
+**Protocol for duck typing:**
+```python
+from typing import Protocol
+
+class Dataset(Protocol):
+    def __len__(self) -> int: ...
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]: ...
+```
+
 ### Function Design
 - ≤50 lines per function
 - Single responsibility principle
@@ -163,3 +193,11 @@ train.py, eval.py, train_multitask.py, download_datasets.py
 | OOM errors | Decrease batch size, enable gradient checkpointing |
 | RDKit failures | Validate SMILES with `_validate_smiles()` |
 | MPS errors | Use CPU for debugging: `--device cpu` |
+
+## Additional Rules
+This project has additional rules in `.claude/rules/`:
+- `coding-style.md` - Python-specific style (PEP 8, black, isort, ruff)
+- `testing.md` - pytest patterns and fixtures
+- `patterns.md` - Protocol types, dataclasses, context managers
+- `security.md` - Secret management, bandit scanning
+- `hooks.md` - Post-tool hooks for auto-formatting
