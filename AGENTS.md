@@ -1,7 +1,21 @@
 # AGENTS.md - Bi-Mamba-Chem
 
-## Project Overview
-Bi-Mamba-Chem implements a bidirectional Mamba architecture for molecular property prediction using PyTorch and RDKit.
+**Generated:** 2026-03-23
+**Commit:** 4e2d9f2 (main)
+**Language:** Python (PyTorch + RDKit)
+
+## Overview
+Bidirectional Mamba SSM for molecular property prediction. O(N) linear complexity vs Transformer's O(N²).
+
+## Entry Points
+| File | Role |
+|------|------|
+| `train.py` | Single-task training (ESOL/BBBP/ClinTox) |
+| `eval.py` | Model evaluation on test sets |
+| `download_datasets.py` | Generate example MoleculeNet datasets |
+| `scripts/manage_experiments.py` | SQLite experiment CRUD |
+
+**Note:** `train_multitask.py` referenced in README does NOT exist — do not look for it.
 
 ## Key Commands
 
@@ -40,102 +54,17 @@ bandit -r src/                  # Security scan
 
 ### Imports (stdlib → third-party → local)
 ```python
-import os
-import json
-import logging
-
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from typing import Optional, Tuple, Union
-
 from rdkit import Chem
-
 from src.models.bimamba import BiMambaForPropertyPrediction
 ```
 
-### Naming Conventions
-| Type | Convention | Example |
-|------|------------|---------|
-| Classes | PascalCase | `BiMambaBlock` |
-| Functions/methods | snake_case | `create_bimamba_model` |
-| Constants | snake_case | `max_length = 512` |
-| Module-level private | `_internal` suffix | `validate_smiles_internal` |
-| Test functions | `test_` prefix | `test_model_forward_pass` |
-
-### Type Hints (Required)
-```python
-def create_bimamba_model(
-    vocab_size: int,
-    d_model: int = 256,
-    n_layers: int = 4,
-    task_type: str = "regression",
-    num_labels: int = 1,
-    **kwargs,
-) -> BiMambaForPropertyPrediction:
-```
-
-### Docstrings (Google Style)
-```python
-def predict_property(smiles: str, model: nn.Module) -> float:
-    """Predict molecular property.
-
-    Args:
-        smiles: Molecule SMILES string
-        model: Trained prediction model
-
-    Returns:
-        float: Predicted property value
-
-    Raises:
-        ValueError: On invalid SMILES
-        RuntimeError: On model inference failure
-    """
-```
-
-### Error Handling
-```python
-# Validate inputs early
-if not isinstance(smiles, str) or not smiles:
-    raise ValueError("smiles must be non-empty string")
-
-# Specific exceptions
-raise FileNotFoundError(f"Dataset not found: {data_path}")
-raise RuntimeError(f"Model forward pass failed: {e}")
-```
-
-### Python Patterns
-
-**Dataclasses as DTOs (preferred over dicts):**
-```python
-from dataclasses import dataclass
-
-@dataclass
-class TrainingConfig:
-    learning_rate: float
-    batch_size: int
-    epochs: int = 10
-
-@dataclass(frozen=True)  # immutable
-class ModelConfig:
-    d_model: int
-    n_layers: int
-    vocab_size: int
-```
-
-**Protocol for duck typing:**
-```python
-from typing import Protocol
-
-class Dataset(Protocol):
-    def __len__(self) -> int: ...
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]: ...
-```
-
-### Function Design
+### Conventions (project-specific deviations)
+- Type hints **required** on all function signatures
+- Dataclasses as DTOs (not bare dicts)
 - ≤50 lines per function
-- Single responsibility principle
-- Use dataclasses for configuration objects
+- `validate_smiles()` before RDKit processing
+- Device order: cuda → mps → cpu (see `get_device()`)
 
 ## ML-Specific Guidelines
 
@@ -167,15 +96,17 @@ assert abs(pred - expected) < 1e-5, f"Expected ~{expected}, got {pred}"
 ## Directory Layout
 ```
 src/
-├── models/           # bimamba.py, multitask.py
-├── data/             # molecule_dataset.py, multitask_dataset.py
+├── models/           # bimamba.py (477L), bimamba_with_mamba_ssm.py (436L)
+├── data/             # molecule_dataset.py (374L)
 ├── db/               # database.py, experiment_repo.py, molecule_repo.py
-├── utils/
-└── visualization/    # dashboard.py, molecule_plots.py, prediction_plots.py
+├── visualization/    # dashboard.py, training_plots.py, prediction_plots.py, molecule_plots.py
+└── (utils/)         # EMPTY — do not use
 tests/
 ├── test_model.py
 └── test_data.py
-train.py, eval.py, train_multitask.py, download_datasets.py
+scripts/
+└── manage_experiments.py
+train.py, eval.py, download_datasets.py
 ```
 
 ## Key Files
@@ -195,9 +126,4 @@ train.py, eval.py, train_multitask.py, download_datasets.py
 | MPS errors | Use CPU for debugging: `--device cpu` |
 
 ## Additional Rules
-This project has additional rules in `.claude/rules/`:
-- `coding-style.md` - Python-specific style (PEP 8, black, isort, ruff)
-- `testing.md` - pytest patterns and fixtures
-- `patterns.md` - Protocol types, dataclasses, context managers
-- `security.md` - Secret management, bandit scanning
-- `hooks.md` - Post-tool hooks for auto-formatting
+This project references `.claude/rules/` but those files **do not exist**. The rules directory contains only `settings.local.json`. See `src/models/AGENTS.md` and `src/visualization/AGENTS.md` for module-specific conventions.

@@ -130,18 +130,37 @@ class BiMambaBlock(nn.Module):
     - 并行扫描算法（parallel scan）- O(N) 复杂度
     - HiPPO 矩阵初始化 - 最优的 state 初始化
     - 硬件感知的融合操作
+
+    与手动实现的 BiMambaBlock (bimamba.py) 的区别：
+    - 内部使用 mamba_ssm 库的 Mamba2，代码更简洁
+    - 移除了手动实现的 SSM 循环和离散化逻辑
+    - 所有 SSM 参数（A, B, C, dt）由 Mamba2 内部自动计算
+
+    Args:
+        d_model: 模型隐藏层维度（输入输出维度）
+        d_state: SSM 状态维度，控制状态空间的容量（通常 64 或 128）
+                 越大记忆容量越强，但计算量增加
+        d_conv: 局部卷积核宽度，用于捕获局部依赖关系
+                例如 d_conv=4 表示用周围 4 个 token 的上下文
+        expand: 块扩展因子，控制内部维度 d_inner = expand * d_model
+                d_inner 越大，模型表达能力越强，但越慢
+        use_fast_path: 是否使用融合 kernel（需要 mamba_ssm 编译安装）
+                       融合 kernel 可显著加速但需要 CUDA/mps
+        layer_idx: 层索引，用于调试和记录（不影响计算）
+        device: 设备（cuda/mps/cpu）
+        dtype: 数据类型（float32/float16/bfloat16）
     """
 
     def __init__(
         self,
-        d_model: int,  # 模型隐藏层维度（输入输出维度）
-        d_state: int = 64,  # SSM 状态维度，通常 64 或 128
-        d_conv: int = 4,  # 局部卷积核宽度，用于捕获局部依赖
-        expand: int = 2,  # 块扩展因子，控制内部维度（d_inner = expand * d_model）
-        use_fast_path: bool = True,  # 是否使用融合 kernel（需要 mamba_ssm 编译安装）
-        layer_idx: Optional[int] = None,  # 层索引，用于调试和记录
-        device: Optional[str] = None,  # 设备（cuda/mps/cpu）
-        dtype: Optional[torch.dtype] = None,  # 数据类型（float32/float16）
+        d_model: int,  # 模型维度
+        d_state: int = 64,  # SSM 状态维度
+        d_conv: int = 4,  # 局部卷积核宽度
+        expand: int = 2,  # 内部维度扩展因子
+        use_fast_path: bool = True,  # 是否使用融合 kernel
+        layer_idx: Optional[int] = None,  # 层索引（用于调试）
+        device: Optional[str] = None,  # 设备
+        dtype: Optional[torch.dtype] = None,  # 数据类型
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
@@ -166,10 +185,14 @@ class BiMambaBlock(nn.Module):
         前向传播。
 
         Args:
-            hidden_states: (B, L, D)
+            hidden_states: (B, L, D) — B=batch, L=序列长度, D=d_model
 
         Returns:
-            output: (B, L, D)
+            output: (B, L, D) — 相同形状的输出
+
+        注意：
+            Mamba2 的 forward 接收 (B, L, D) 而非 (B, D, L)，
+            与手动实现中需要 transpose 不同，这里更直观。
         """
         return self.mamba(hidden_states)
 
@@ -177,6 +200,33 @@ class BiMambaBlock(nn.Module):
 class BiMambaEncoder(nn.Module):
     """
     双向 Mamba 编码器，同时从左到右和从右到左处理序列。
+
+    架构流程：
+        1. Token Embedding + Position Embedding → 初始 hidden_states
+        2. Forward 分支（从左到右）→ forward_hidden
+        3. Backward 分支（从右到左）→ backward_hidden
+        4. Fusion Gate 融合双向表示 → fused_hidden
+        5. LayerNorm → output
+
+    与 bimamba.py 中 BiMambaEncoder 的区别：
+        - bimamba.py 中 forward/backward 共享同一组层（权重共享）
+          本文件 forward/backward 使用独立的两组层（权重不共享）
+        - bimamba.py 支持 concat/add/gate 三种 fusion 模式
+          本文件仅支持 gate fusion
+        - bimamba.py 有 3 种 pooling (mean/max/cls)，本文件 pooling 在外层处理
+
+    Args:
+        vocab_size: 词表大小（SMILES token 数量）
+        d_model: 模型隐藏层维度
+        n_layers: 每方向的 Mamba 层数（总层数 = n_layers * 2）
+        d_state: SSM 状态维度（传递给 Mamba2）
+        d_conv: 局部卷积核宽度
+        expand: 内部维度扩展因子
+        max_seq_length: 最大序列长度（用于 position embedding）
+        dropout: Dropout 概率
+        pad_token_id: padding token 的 id（embedding 时自动清零）
+        device: 设备
+        dtype: 数据类型
     """
 
     def __init__(
@@ -209,6 +259,7 @@ class BiMambaEncoder(nn.Module):
             max_seq_length, d_model, **factory_kwargs
         )
 
+        # Forward/backward layers have independent weights (not shared)
         self.forward_layers = self._make_layers(
             d_model, d_state, d_conv, expand, factory_kwargs
         )
@@ -218,9 +269,30 @@ class BiMambaEncoder(nn.Module):
 
         self.norm = nn.LayerNorm(d_model, **factory_kwargs)
         self.dropout = nn.Dropout(dropout)
+        # Projects concatenated [forward; backward] → [gate_f; gate_b]
         self.fusion_gate = nn.Linear(d_model * 2, d_model * 2, **factory_kwargs)
 
-    def _make_layers(self, d_model, d_state, d_conv, expand, factory_kwargs):
+    def _make_layers(
+        self,
+        d_model: int,
+        d_state: int,
+        d_conv: int,
+        expand: int,
+        factory_kwargs: dict,
+    ) -> nn.ModuleList:
+        """
+        创建 n_layers 个 BiMambaBlock 的 ModuleList。
+
+        Args:
+            d_model: 模型维度
+            d_state: SSM 状态维度
+            d_conv: 卷积核宽度
+            expand: 扩展因子
+            factory_kwargs: 设备和 dtype 配置
+
+        Returns:
+            nn.ModuleList of BiMambaBlock layers
+        """
         return nn.ModuleList(
             [
                 BiMambaBlock(
@@ -238,12 +310,15 @@ class BiMambaEncoder(nn.Module):
         self, input_ids: torch.Tensor, attention_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """
+        编码输入序列为双向表示。
+
         Args:
-            input_ids: (B, L)
-            attention_mask: (B, L)
+            input_ids: (B, L) — token 序列
+            attention_mask: (B, L) — 1=有效 token, 0=padding
+                            用于在 embedding 和 pooling 阶段屏蔽 padding
 
         Returns:
-            hidden_states: (B, L, D)
+            hidden_states: (B, L, D) — 编码后的隐藏状态
         """
         batch_size, seq_len = input_ids.shape
 
@@ -252,7 +327,6 @@ class BiMambaEncoder(nn.Module):
             .unsqueeze(0)
             .expand(batch_size, -1)
         )
-
         token_embeds = self.token_embedding(input_ids)
         position_embeds = self.position_embedding(position_ids)
         hidden_states = self.dropout(token_embeds + position_embeds)
@@ -264,24 +338,49 @@ class BiMambaEncoder(nn.Module):
         for layer in self.forward_layers:
             forward_hidden = layer(forward_hidden)
 
-        backward_hidden = torch.flip(hidden_states, [1])
+        # Backward pass (right → left): flip → Mamba → flip back
+        backward_hidden = torch.flip(hidden_states, dims=[1])
         for layer in self.backward_layers:
             backward_hidden = layer(backward_hidden)
-        backward_hidden = torch.flip(backward_hidden, [1])
+        backward_hidden = torch.flip(backward_hidden, dims=[1])
 
+        # Gate fusion: learn which direction to trust at each position
         combined = torch.cat([forward_hidden, backward_hidden], dim=-1)
         gate = torch.sigmoid(self.fusion_gate(combined))
         gate_forward, gate_backward = gate.chunk(2, dim=-1)
         fused_hidden = gate_forward * forward_hidden + gate_backward * backward_hidden
 
-        output = self.norm(fused_hidden)
-        return output
+        return self.norm(fused_hidden)
 
 
 class BiMambaForPropertyPrediction(nn.Module):
     """
     Bi-Mamba 分子性质预测模型。
-    支持回归任务和分类任务。
+    支持回归任务（MSELoss）和分类任务（BCEWithLogitsLoss）。
+
+    整体架构：
+        Input → Encoder → Pooling → Dropout → Classifier → Output
+
+    与 bimamba.py 中 BiMambaForPropertyPrediction 的区别：
+        - 使用本文件的 BiMambaEncoder（独立 forward/backward 权重）
+        - Encoder 内部不处理 pooling，只输出 hidden_states
+        - Pooling 在外层统一处理（mean/max/cls）
+
+    Args:
+        vocab_size: 词表大小
+        d_model: 模型维度
+        n_layers: 编码器层数
+        d_state: SSM 状态维度
+        d_conv: 卷积核宽度
+        expand: 扩展因子
+        max_seq_length: 最大序列长度
+        num_labels: 输出标签数（回归=1，多分类>1）
+        task_type: "regression" 或 "classification"
+        pooling: "mean" | "max" | "cls"
+        dropout: Dropout 概率
+        pad_token_id: padding token id
+        device: 设备
+        dtype: 数据类型
     """
 
     def __init__(
@@ -340,16 +439,20 @@ class BiMambaForPropertyPrediction(nn.Module):
         labels: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
+        前向传播。
+
         Args:
-            input_ids: (B, L)
-            attention_mask: (B, L)
-            labels: (B,) or (B, num_labels)
+            input_ids: (B, L) — token 序列
+            attention_mask: (B, L) — 1=有效, 0=padding
+            labels: (B,) 回归 / (B, num_labels) 分类 — 可选，用于计算损失
 
         Returns:
-            logits, loss
+            logits: (B,) or (B, num_labels) — model output
+            loss: scalar loss (only when labels is not None)
         """
         batch_size = input_ids.shape[0]
 
+        # CLS pooling: prepend a learnable [CLS] token, then take the first position after encoding
         if self.pooling == "cls":
             cls_tokens = self.cls_token.expand(batch_size, -1, -1)
             input_ids = torch.cat(
@@ -400,7 +503,7 @@ class BiMambaForPropertyPrediction(nn.Module):
         elif self.pooling == "cls":
             pooled_output = encoder_outputs[:, 0]
         else:
-            raise ValueError(f"未知的池化方法: {self.pooling}")
+            raise ValueError(f"Unknown pooling: {self.pooling}")
 
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
@@ -425,7 +528,34 @@ def create_bimamba_model(
     num_labels: int = 1,
     **kwargs,
 ) -> BiMambaForPropertyPrediction:
-    """工厂函数：创建 BiMamba 模型。"""
+    """
+    工厂函数：创建 BiMamba 分子性质预测模型。
+
+    与 bimamba.py 中 create_bimamba_model 的区别：
+        - 本函数创建基于 mamba_ssm 库的实现
+        - 默认 d_state=64（bimamba.py 手动实现默认为 16）
+
+    Args:
+        vocab_size: 词表大小
+        d_model: 模型维度（默认 256）
+        n_layers: 层数（默认 4）
+        task_type: "regression" 或 "classification"
+        num_labels: 标签数（默认 1，用于回归）
+        **kwargs: 传递给 BiMambaForPropertyPrediction 的其他参数
+                  例如: d_state, d_conv, expand, pooling, dropout, max_seq_length
+
+    Returns:
+        BiMambaForPropertyPrediction 实例
+
+    使用示例:
+        model = create_bimamba_model(
+            vocab_size=50,
+            d_model=256,
+            n_layers=4,
+            task_type="regression",
+            num_labels=1,
+        )
+    """
     return BiMambaForPropertyPrediction(
         vocab_size=vocab_size,
         d_model=d_model,
