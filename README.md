@@ -230,6 +230,26 @@ checkpoints/
 | 长序列分子 | 512 | 6 | 8 | 5e-5 | 100 |
 | 小数据集 | 128 | 2 | 8 | 1e-4 | 200 |
 
+### RTX 4060 8GB 推荐配置
+
+**推荐数据集: ESOL**（数据量小 ~1,128 样本，训练快，显存占用低）
+
+```bash
+python train.py --dataset ESOL --device cuda --batch_size 32 --epochs 100 --learning_rate 1e-3
+```
+
+| 设置 | 推荐值 | 说明 |
+|------|--------|------|
+| batch_size | 32-64 | 8GB 显存足够 |
+| 学习率 | 1e-3 ~ 5e-4 | 初始学习率 |
+| 梯度裁剪 | `clip_grad_norm_(model.parameters(), 1.0)` | 防止梯度爆炸 |
+| 混合精度 | 可选 (`torch.cuda.amp`) | 进一步节省显存 |
+
+**如遇 OOM（显存不足）**：
+- 降低 `batch_size` 到 16 或 8
+- 使用 `torch.inference_mode()` 验证
+- 减小模型 `d_model` 到 128 或 `n_layers` 到 2
+
 ### 分布式训练（多 GPU）
 
 ```bash
