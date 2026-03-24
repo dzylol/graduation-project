@@ -1,4 +1,4 @@
-# Bi-Mamba (mamba_ssm 版本) 架构解析
+ # Bi-Mamba (mamba_ssm 版本) 架构解析
 
 > 本文档解析 `src/models/bimamba_with_mamba_ssm.py` 的代码架构，对比 `bimamba.py`（手动实现）的差异。
 >
