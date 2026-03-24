@@ -29,3 +29,7 @@ src/visualization/
 - `save_path=None` means don't save, just return figure
 - Molecule drawing requires valid SMILES — validate with RDKit first
 - Dashboard requires `n_exps > 0` — raises `ValueError` otherwise
+
+## Anti-Patterns (THIS MODULE)
+- **NEVER** call `plt.show()` inside plotting functions — caller decides
+- **NEVER** pass invalid SMILES to RDKit — validate first

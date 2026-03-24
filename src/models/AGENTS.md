@@ -33,4 +33,7 @@ src/models/
 - dt_rank: `auto` = `ceil(d_model / 16)`
 - Activation: `SiLU` (nn.SiLU)
 - A_log: `nn.Parameter(log(A))` where A =.arange(1, d_state+1)
-- No `as any`, no `@ts-ignore`
+
+## Anti-Patterns (THIS MODULE)
+- **NEVER** use `as any` or `@ts-ignore` — type safety is required
+- **NEVER** use bare dicts — use dataclasses

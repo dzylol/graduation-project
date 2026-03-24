@@ -125,5 +125,20 @@ train.py, eval.py, download_datasets.py
 | RDKit failures | Validate SMILES with `_validate_smiles()` |
 | MPS errors | Use CPU for debugging: `--device cpu` |
 
-## Additional Rules
-This project references `.claude/rules/` but those files **do not exist**. The rules directory contains only `settings.local.json`. See `src/models/AGENTS.md` and `src/visualization/AGENTS.md` for module-specific conventions.
+## Project Status
+
+| Aspect | Status |
+|--------|--------|
+| CI/CD | **None** — no GitHub Actions, Docker, or automated pipelines |
+| Anti-patterns | **Clean** — no DO NOT/NEVER/ALWAYS/WARNING comments in source |
+| Package config | **None** — not pip-installable (use `PYTHONPATH=.` or `pip install -e .`) |
+| Test config | **None** — pytest runs without config file |
+
+## Module-Specific AGENTS.md
+
+| Module | File | Purpose |
+|--------|------|---------|
+| `src/models/` | AGENTS.md | BiMamba architecture, fusion modes, pooling |
+| `src/visualization/` | AGENTS.md | Plotting conventions, RDKit molecule rendering |
+| `src/data/` | AGENTS.md | SMILES tokenization, dataset handling, z-score norm |
+| `src/db/` | AGENTS.md | SQLite persistence, ExperimentRepository, singleton pattern |
