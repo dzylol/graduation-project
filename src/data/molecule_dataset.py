@@ -65,7 +65,7 @@ smiles_token_tuple: tuple[str, ...] = (
 
 special_token_tuple: tuple[str, ...] = (
     "<pad>",  # 填充标记
-    ">",  # 未知字符
+    "<unk>",  # 未知字符
     "<bos>",  # 句子开始
     "<eos>",  # 句子结束
 )
@@ -77,7 +77,7 @@ def build_default_vocab() -> Dict[str, int]:
     }
     vocab.update(
         {
-            char: idx + len(smiles_token_tuple)
+            char: idx + len(special_token_tuple)
             for idx, char in enumerate(smiles_token_tuple)
         }
     )
@@ -122,7 +122,7 @@ class MoleculeTokenizer:
         tokens: List[str] = []
         for token_id in token_ids:
             token: str = self.inverse_vocab.get(token_id, "")
-            if token not in ["<pad>", ">", "<bos>", "<eos>"]:
+            if token not in ["<pad>", "<unk>", "<bos>", "<eos>"]:
                 tokens.append(token)
         return "".join(tokens)
 

@@ -173,7 +173,7 @@ class BiMambaBlock(nn.Module):
     ) -> torch.Tensor:
         dA, dB = self._discretize(dt_t, B_t, A)
         x_t_clamped = torch.clamp(x_t, min=-10, max=10)
-        h_new = torch.einsum("bdn,bdk->bdk", dA, h) + dB * x_t_clamped.unsqueeze(-1)
+        h_new = dA * h + dB * x_t_clamped.unsqueeze(-1)
         h_new = torch.clamp(h_new, min=-100, max=100)
         y_t = torch.sum(h_new * C_t.unsqueeze(1), dim=2)
         return y_t, h_new
@@ -276,15 +276,19 @@ class BiMambaEncoder(nn.Module):
         )
 
     def forward(
-        self, input_ids: torch.Tensor, attention_mask: Optional[torch.Tensor] = None
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        cls_token: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Args:
             input_ids: (B, L)
             attention_mask: (B, L)
+            cls_token: (B, 1, D) optional CLS embedding to prepend
 
         Returns:
-            hidden_states: (B, L, D)
+            hidden_states: (B, L, D) or (B, L+1, D) if cls_token provided
         """
         batch_size, seq_len = input_ids.shape
 
@@ -293,12 +297,26 @@ class BiMambaEncoder(nn.Module):
             .unsqueeze(0)
             .expand(batch_size, -1)
         )
-
         token_embeds = self.token_embedding(input_ids)
         position_embeds = self.position_embedding(position_ids)
         hidden_states = self.dropout(token_embeds + position_embeds)
 
+        if cls_token is not None:
+            hidden_states = torch.cat([cls_token, hidden_states], dim=1)
+
         if attention_mask is not None:
+            if cls_token is not None:
+                attention_mask = torch.cat(
+                    [
+                        torch.ones(
+                            (batch_size, 1),
+                            dtype=attention_mask.dtype,
+                            device=attention_mask.device,
+                        ),
+                        attention_mask,
+                    ],
+                    dim=1,
+                )
             hidden_states = hidden_states * attention_mask.unsqueeze(-1)
 
         forward_hidden = hidden_states
@@ -391,34 +409,11 @@ class BiMambaForPropertyPrediction(nn.Module):
         """
         batch_size = input_ids.shape[0]
 
+        cls_token = None
         if self.pooling == "cls":
-            cls_tokens = self.cls_token.expand(batch_size, -1, -1)
-            input_ids = torch.cat(
-                [
-                    torch.full(
-                        (batch_size, 1),
-                        self.pad_token_id,
-                        dtype=torch.long,
-                        device=input_ids.device,
-                    ),
-                    input_ids,
-                ],
-                dim=1,
-            )
-            if attention_mask is not None:
-                attention_mask = torch.cat(
-                    [
-                        torch.ones(
-                            (batch_size, 1),
-                            dtype=attention_mask.dtype,
-                            device=attention_mask.device,
-                        ),
-                        attention_mask,
-                    ],
-                    dim=1,
-                )
+            cls_token = self.cls_token.expand(batch_size, -1, -1)
 
-        encoder_outputs = self.encoder(input_ids, attention_mask)
+        encoder_outputs = self.encoder(input_ids, attention_mask, cls_token=cls_token)
 
         if self.pooling == "mean":
             if attention_mask is not None:
@@ -439,6 +434,7 @@ class BiMambaForPropertyPrediction(nn.Module):
                 pooled_output = torch.max(encoder_outputs, dim=1)[0]
 
         elif self.pooling == "cls":
+            # encoder_outputs now has CLS at position 0
             pooled_output = encoder_outputs[:, 0]
         else:
             raise ValueError(f"未知的池化方法: {self.pooling}")

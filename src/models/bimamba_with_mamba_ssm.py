@@ -307,7 +307,10 @@ class BiMambaEncoder(nn.Module):
         )
 
     def forward(
-        self, input_ids: torch.Tensor, attention_mask: Optional[torch.Tensor] = None
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        cls_token: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         编码输入序列为双向表示。
@@ -315,10 +318,10 @@ class BiMambaEncoder(nn.Module):
         Args:
             input_ids: (B, L) — token 序列
             attention_mask: (B, L) — 1=有效 token, 0=padding
-                            用于在 embedding 和 pooling 阶段屏蔽 padding
+            cls_token: (B, 1, D) optional CLS embedding to prepend
 
         Returns:
-            hidden_states: (B, L, D) — 编码后的隐藏状态
+            hidden_states: (B, L, D) or (B, L+1, D) if cls_token provided
         """
         batch_size, seq_len = input_ids.shape
 
@@ -331,20 +334,33 @@ class BiMambaEncoder(nn.Module):
         position_embeds = self.position_embedding(position_ids)
         hidden_states = self.dropout(token_embeds + position_embeds)
 
+        if cls_token is not None:
+            hidden_states = torch.cat([cls_token, hidden_states], dim=1)
+
         if attention_mask is not None:
+            if cls_token is not None:
+                attention_mask = torch.cat(
+                    [
+                        torch.ones(
+                            (batch_size, 1),
+                            dtype=attention_mask.dtype,
+                            device=attention_mask.device,
+                        ),
+                        attention_mask,
+                    ],
+                    dim=1,
+                )
             hidden_states = hidden_states * attention_mask.unsqueeze(-1)
 
         forward_hidden = hidden_states
         for layer in self.forward_layers:
             forward_hidden = layer(forward_hidden)
 
-        # Backward pass (right → left): flip → Mamba → flip back
         backward_hidden = torch.flip(hidden_states, dims=[1])
         for layer in self.backward_layers:
             backward_hidden = layer(backward_hidden)
         backward_hidden = torch.flip(backward_hidden, dims=[1])
 
-        # Gate fusion: learn which direction to trust at each position
         combined = torch.cat([forward_hidden, backward_hidden], dim=-1)
         gate = torch.sigmoid(self.fusion_gate(combined))
         gate_forward, gate_backward = gate.chunk(2, dim=-1)
@@ -452,35 +468,17 @@ class BiMambaForPropertyPrediction(nn.Module):
         """
         batch_size = input_ids.shape[0]
 
-        # CLS pooling: prepend a learnable [CLS] token, then take the first position after encoding
+        cls_token = None
         if self.pooling == "cls":
-            cls_tokens = self.cls_token.expand(batch_size, -1, -1)
-            input_ids = torch.cat(
-                [
-                    torch.full(
-                        (batch_size, 1),
-                        self.pad_token_id,
-                        dtype=torch.long,
-                        device=input_ids.device,
-                    ),
-                    input_ids,
-                ],
+            cls_token = self.cls_token.expand(batch_size, -1, -1)
+
+        encoder_outputs = self.encoder(input_ids, attention_mask, cls_token=cls_token)
+
+        if self.pooling == "cls":
+            encoder_outputs = torch.cat(
+                [cls_tokens.expand(-1, encoder_outputs.size(1), -1), encoder_outputs],
                 dim=1,
             )
-            if attention_mask is not None:
-                attention_mask = torch.cat(
-                    [
-                        torch.ones(
-                            (batch_size, 1),
-                            dtype=attention_mask.dtype,
-                            device=attention_mask.device,
-                        ),
-                        attention_mask,
-                    ],
-                    dim=1,
-                )
-
-        encoder_outputs = self.encoder(input_ids, attention_mask)
 
         if self.pooling == "mean":
             if attention_mask is not None:
