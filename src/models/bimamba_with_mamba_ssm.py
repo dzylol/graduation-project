@@ -118,7 +118,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, Tuple, Union
-from mamba_ssm import Mamba2
 
 
 class BiMambaBlock(nn.Module):
@@ -171,6 +170,8 @@ class BiMambaBlock(nn.Module):
         self.expand = expand
         self.use_fast_path = use_fast_path
         self.layer_idx = layer_idx
+
+        from mamba_ssm import Mamba2
 
         self.mamba = Mamba2(
             d_model=d_model,
