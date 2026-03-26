@@ -92,7 +92,7 @@ python /workspace/train.py --dataset ESOL --d_model 128 --n_layers 2 --epochs 1
 #### 融合模式 (已在代码中固定为 `gate`)
 > 注：BiMambaEncoder 使用 `gate` 融合前向/后向隐藏状态
 
-### 2.3 实验矩阵
+### 2.4 实验矩阵
 
 #### 组合数量计算
 - `d_model`: 3 种
@@ -372,7 +372,7 @@ import json
 import pandas as pd
 from pathlib import Path
 
-def load_experiments(db_path="bi_mamba_chem.db"):
+def load_experiments(db_path="experiment-data/experiments.db"):
     """从数据库加载实验结果"""
     conn = sqlite3.connect(db_path)
     df = pd.read_sql_query("SELECT * FROM experiments", conn)
@@ -423,7 +423,7 @@ Week 1 (Day 3-5): Phase 1 - 模型结构探索
   └── 每天约 27 个实验
 
 Week 2 (Day 1-2): Phase 2 - 训练策略优化
-  ├── 81 experiments
+  ├── 54 experiments
   └── 每天约 27 个实验
 
 Week 2 (Day 3): Phase 3 - 最终验证

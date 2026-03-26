@@ -31,7 +31,6 @@ training.log
 build.log
 
 # Databases
-*.db
 *.sqlite
 *.sqlite3
 
