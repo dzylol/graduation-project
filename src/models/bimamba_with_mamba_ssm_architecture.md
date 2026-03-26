@@ -1327,6 +1327,84 @@ Mamba 的选择性机制: h_t = dA·h_{t-1} + dB·x_t
 
 > **Position Embedding** 是可学习的位置查找表（512 × d_model），将位置索引映射为 d_model 维向量，与 Token Embedding 相加后，让模型同时感知**内容**（token 是什么）和**位置**（在序列第几位）。
 
+#### 附录：position_embedding.weight 详解
+
+> **"是 tokens 向量根据位置查表获取权重矩阵，加到 token 上吗？"** — 这个问题值得单独澄清。
+
+**不是"根据 token 查位置权重"，而是两个独立的查表。**
+
+##### 两个独立的查找表
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Token Embedding: token id → token 向量（语义）          │
+│                                                         │
+│  token_embedding.weight（vocab_size × d_model）        │
+│  token "C" 的 id = 1                                    │
+│    → token_embedding.weight[1]                         │
+│    → [1.2, 0.5, -0.3, 0.8, ...]  ← 查表得到 "C" 的语义  │
+└─────────────────────────────────────────────────────────┘
+                        +
+┌─────────────────────────────────────────────────────────┐
+│  Position Embedding: position id → position 向量（位置）  │
+│                                                         │
+│  position_embedding.weight（max_seq_length × d_model） │
+│  position = 3                                          │
+│    → position_embedding.weight[3]                      │
+│    → [0.04, 0.08, 0.12, 0.16, ...]  ← 查表得到位置 3   │
+└─────────────────────────────────────────────────────────┘
+                        ↓
+            逐元素相加（element-wise add）
+                        ↓
+        result = [1.24, 0.58, -0.18, 0.96, ...]
+```
+
+##### 权重矩阵结构
+
+```python
+self.position_embedding = nn.Embedding(max_seq_length=512, d_model=8)
+
+# position_embedding.weight 的形状: (512, 8)
+# 即 max_seq_length 行，每行 d_model=8 维向量
+
+# 第 i 行 = 位置 i 的位置编码向量
+position_embedding.weight[0]  # 位置 0 的向量
+position_embedding.weight[1]  # 位置 1 的向量
+position_embedding.weight[511] # 位置 511 的向量
+```
+
+##### 形象比喻
+
+```
+Token Embedding = 字典
+  "C" → 查 "C" 的解释 → [1.2, 0.5, ...]（语义）
+
+Position Embedding = 字典
+  位置 3 → 查 "第3位" 的解释 → [0.04, 0.08, ...]（位置）
+
+相加 = 语义 + 位置 = "C在第3位" 的完整表示
+```
+
+##### 关键点
+
+| 操作 | 说明 |
+|------|------|
+| **查表** | `weight[索引]` 是离散查表，不是矩阵乘法 |
+| **相加** | 不是乘，是逐元素加（element-wise add） |
+| **同一个 token** | "C" 在位置 0 和位置 3 的最终表示不同——因为加的位置向量不同 |
+
+##### 为什么用加法而不是拼接
+
+```
+方案 A（拼接）: concat([token_vec, pos_vec]) → 2×d_model 维
+方案 B（相加）: token_vec + pos_vec           → d_model 维
+
+Mamba 用方案 B（相加）的原因：
+  - 维度不变，保持 d_model
+  - 训练时 token 和 position 的信息自然融合
+  - 实践效果和拼接相当，但更节省维度
+```
+
 ### 4.4 Step 3：相加 + Padding Mask
 
 ```python
