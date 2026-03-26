@@ -3,36 +3,46 @@
 **项目**: Bi-Mamba-Chem (双向 Mamba SSM 分子性质预测)
 **制定日期**: 2026-03-26
 **用户需求**: 5次重复 × 全部超参数 × 中等规模 (3-5天)
-**GPU约束**: 16GB VRAM (所有配置必须在此限制下运行)
+**GPU约束**: 16GB VRAM (服务器 GPU)
 
 ---
 
 ## 一、环境准备
 
-### 1.1 当前环境问题
-| 问题 | 解决方案 |
-|------|---------|
-| 缺少 `rdkit` | `conda install -c conda-forge rdkit` 或 `pip install rdkit-pypi` |
-| 缺少 `sklearn` | `pip install scikit-learn` |
-| 数据目录为空 | 运行 `python download_datasets.py` |
+### 1.1 环境状态
 
-### 1.2 环境验证命令
+| 组件 | 状态 | 详情 |
+|------|------|------|
+| **镜像** | ✅ | `localhost/bimamba-train:latest` (已构建) |
+| **GPU** | ⏳ | 服务器 16GB GPU (待验证) |
+| **PyTorch** | ✅ | 2.4.0 + CUDA 12.4 |
+| **RDKit** | ✅ | 2025.9.6 |
+| **scikit-learn** | ✅ | 1.8.0 |
+| **数据集** | ⏳ | 需在服务器上运行 `download_datasets.py` |
+| **训练测试** | ⏳ | 需在服务器上验证 |
+
+### 1.2 服务器部署步骤
 ```bash
-# 启动容器（需要 GPU 支持）
+# 1. 上传项目到服务器
+scp -r /home/ziyu/graduation-project user@server:/path/to/
+
+# 2. 在服务器上构建镜像（如需要）
+podman build -t localhost/bimamba-train:latest .
+
+# 3. 启动容器并下载数据
 podman run --gpus all --rm -it \
-  -v /home/ziyu/graduation-project:/workspace \
-  localhost/mamba-env:latest bash
+  -v /path/to/graduation-project:/workspace \
+  localhost/bimamba-train:latest bash
+  
+  # 容器内
+  python /workspace/download_datasets.py
 
-# 容器内验证环境
-python -c "import torch; print('PyTorch:', torch.__version__)"
+# 4. 验证环境
+python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 python -c "import rdkit; print('RDKit:', rdkit.__version__)"
-python -c "import sklearn; print('sklearn installed')"
 
-# 下载数据集
-cd /workspace && python download_datasets.py
-
-# 验证数据
-ls -la /workspace/data/{ESOL,BBBP,ClinTox}/
+# 5. 运行训练测试
+python /workspace/train.py --dataset ESOL --d_model 128 --n_layers 2 --epochs 1
 ```
 
 ---
@@ -46,9 +56,9 @@ ls -la /workspace/data/{ESOL,BBBP,ClinTox}/
 | BBBP | 分类 | ~2,000 | ROC-AUC | ~5min/epoch |
 | ClinTox | 分类 | ~1,500 | ROC-AUC | ~4min/epoch |
 
-### 2.2 GPU 显存约束 (16GB)
+### 2.2 GPU 显存约束 (16GB GPU)
 
-根据显存估算，为 16GB GPU 设置动态 batch_size：
+根据 16GB 显存设置动态 batch_size：
 
 | d_model | n_layers | 最大 batch_size |
 |----------|----------|-----------------|
@@ -202,10 +212,12 @@ batch_size (根据固定的最佳结构):
 #!/usr/bin/env python3
 """
 batch_train.py - 批量自动训练脚本 (16GB GPU 优化)
+输出目录: experiment-data/
 """
 import itertools
 import subprocess
 import json
+import os
 from datetime import datetime
 
 # GPU 显存约束映射 (16GB GPU)
@@ -245,6 +257,10 @@ def generate_experiments(config, dataset):
 
 def run_experiment(exp_config, seed=42):
     """运行单个实验"""
+    # 实验输出目录
+    output_dir = f"experiment-data/checkpoints/{exp_config['dataset']}"
+    os.makedirs(output_dir, exist_ok=True)
+    
     cmd = [
         "python", "train.py",
         "--dataset", exp_config["dataset"],
@@ -257,7 +273,8 @@ def run_experiment(exp_config, seed=42):
         "--epochs", str(exp_config["epochs"]),
         "--seed", str(seed),
         "--device", "cuda",
-        "--no_db",
+        "--output_dir", output_dir,
+        "--db_path", "experiment-data/experiments.db",
     ]
     
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -376,7 +393,7 @@ def find_best_config(df, metric="val_loss", minimize=True):
 
 ---
 
-## 六、GPU 显存安全检查表
+## 六、GPU 显存安全检查表 (16GB GPU)
 
 在运行任何实验前，确认 batch_size 与 GPU 显存匹配：
 
@@ -420,13 +437,31 @@ Week 2 (Day 3): Phase 3 - 最终验证
 
 | 文件 | 位置 | 说明 |
 |------|------|------|
+| **实验数据** | `experiment-data/` | **所有实验结果存放目录** |
+| 数据库 | `experiment-data/experiments.db` | 实验记录 (SQLite) |
+| 检查点 | `experiment-data/checkpoints/` | 模型权重 |
+| 日志 | `experiment-data/logs/` | 训练日志 |
+| 结果 | `experiment-data/results/` | 分析结果 |
 | 训练脚本 | `train.py` | 主训练入口 |
 | 评估脚本 | `eval.py` | 模型评估 |
 | 数据下载 | `download_datasets.py` | 获取数据集 |
-| 数据库 | `bi_mamba_chem.db` | 实验记录 |
-| 检查点 | `checkpoints/` | 模型权重 |
 | 源码 | `src/` | 模型实现 |
 | Dockerfile | `Dockerfile` | 容器镜像构建 |
+
+### experiment-data/ 目录结构
+```
+experiment-data/
+├── experiments.db          # SQLite 数据库
+├── checkpoints/           # 模型权重
+│   ├── ESOL_d_model=256_nlayers=4/
+│   └── BBBP_d_model=512_nlayers=6/
+├── logs/                 # 训练日志
+│   ├── phase1_ESOL_001.log
+│   └── phase2_BBBP_001.log
+└── results/              # 分析结果
+    ├── phase1_summary.csv
+    └── best_config.json
+```
 
 ---
 
@@ -441,7 +476,7 @@ podman build -t localhost/bimamba-train:latest .
 # 验证镜像
 podman run --rm localhost/bimamba-train:latest python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 
-# 运行训练 (示例)
+# 运行训练 (示例) - 数据输出到 experiment-data/
 podman run --gpus all --rm \
   -v /home/ziyu/graduation-project:/workspace \
   localhost/bimamba-train:latest \
@@ -450,7 +485,9 @@ podman run --gpus all --rm \
     --d_model 256 \
     --n_layers 4 \
     --batch_size 32 \
-    --epochs 100
+    --epochs 100 \
+    --output_dir /workspace/experiment-data/checkpoints \
+    --db_path /workspace/experiment-data/experiments.db
 ```
 
 > **注意**: `--gpus all` 需要 NVIDIA Container Toolkit 支持
