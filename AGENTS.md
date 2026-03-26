@@ -142,3 +142,13 @@ train.py, eval.py, download_datasets.py
 | `src/visualization/` | AGENTS.md | Plotting conventions, RDKit molecule rendering |
 | `src/data/` | AGENTS.md | SMILES tokenization, dataset handling, z-score norm |
 | `src/db/` | AGENTS.md | SQLite persistence, ExperimentRepository, singleton pattern |
+| `tests/` | AGENTS.md | Test conventions, dual-mode execution, pytest patterns |
+
+## Testing Conventions
+
+> See `tests/AGENTS.md` for full conventions (dual-mode, no fixtures, step-by-step style).
+
+```bash
+python -m pytest tests/ -v   # All tests
+python tests/test_model.py    # Standalone (no pytest)
+```
