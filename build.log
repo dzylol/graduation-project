@@ -1,0 +1,12 @@
+[1/2] STEP 1/6: FROM docker.io/pytorch/pytorch:2.4.0-cuda12.4-cudnn9-devel AS builder
+[1/2] STEP 2/6: WORKDIR /build
+--> Using cache 9381651a6769069ebdd0f8a96c493752ddd8445e6c18289efeec6336696d5c72
+--> 9381651a6769
+[1/2] STEP 3/6: COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+--> Using cache 62b3af017c2bfb2e960da25d1d457acdad13a2cf71c6420638580cc477307dd7
+--> 62b3af017c2b
+[1/2] STEP 4/6: COPY requirements.txt .
+--> Using cache aed4bfef4ad4fe1a65dc901d9ac3edcb114f452070eec015dd1e6b7b74aaa0a9
+--> aed4bfef4ad4
+[1/2] STEP 5/6: RUN --mount=type=cache,source=uv-cache,target=/root/.cache/uv     uv pip install --system --no-cache -r requirements.txt ||     uv pip install --system --no-cache -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+Error: building at STEP "RUN --mount=type=cache,source=uv-cache,target=/root/.cache/uv uv pip install --system --no-cache -r requirements.txt ||     uv pip install --system --no-cache -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt": resolving mountpoints for container "78814dae8248e0cea1781046b5f42a04fe857d5d5852fb9c38be9bf498e84b88": sanitizing cache subdirectory "/var/tmp/buildah-cache-1000/9151c8f67825163f/uv-cache": opening directory "uv-cache" under "/var/tmp/buildah-cache-1000/9151c8f67825163f": no such file or directory: no such file or directory
