@@ -8,15 +8,75 @@ from __future__ import annotations
 import functools
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
 
 from rdkit import Chem
+
+
+class LabelNormalizer:
+    """Z-score normalization for regression targets.
+
+    Transforms labels to zero-mean, unit-variance.
+    Fit on training set only, apply to val/test sets.
+    """
+
+    def __init__(self) -> None:
+        self.mean: Optional[float] = None
+        self.std: Optional[float] = None
+        self._fitted: bool = False
+
+    def fit(self, labels: np.ndarray) -> "LabelNormalizer":
+        self.mean = float(np.mean(labels))
+        self.std = float(np.std(labels))
+        if self.std < 1e-8:
+            self.std = 1.0
+        self._fitted = True
+        return self
+
+    def transform(self, labels: np.ndarray) -> np.ndarray:
+        if not self._fitted:
+            raise RuntimeError("Normalizer not fitted. Call fit() first.")
+        return (labels - self.mean) / self.std
+
+    def inverse_transform(self, normalized: np.ndarray) -> np.ndarray:
+        if not self._fitted:
+            raise RuntimeError("Normalizer not fitted. Call fit() first.")
+        return normalized * self.std + self.mean
+
+    @property
+    def is_fitted(self) -> bool:
+        return self._fitted
+
+
+class NormalizedDataset(Dataset):
+    """Wraps MoleculeDataset to apply z-score normalization to labels.
+
+    Use this wrapper when training with normalized regression labels.
+    The normalizer should be fitted on the training set only.
+    """
+
+    def __init__(
+        self,
+        base_dataset: MoleculeDataset,
+        normalizer: LabelNormalizer,
+    ) -> None:
+        self.base_dataset = base_dataset
+        self.normalizer = normalizer
+
+    def __len__(self) -> int:
+        return len(self.base_dataset)
+
+    def __getitem__(self, idx: int) -> Tuple[Tensor, Tensor]:
+        input_ids, labels = self.base_dataset[idx]
+        normalized_labels = self.normalizer.transform(labels.numpy())
+        return input_ids, torch.tensor(normalized_labels, dtype=torch.float)
 
 
 smiles_token_tuple: tuple[str, ...] = (
@@ -276,6 +336,7 @@ def create_data_loaders(
     task_type: str = "regression",
     max_length: int = 512,
     num_workers: int = 4,
+    normalize: bool = True,
 ) -> Tuple:
     """创建训练/验证/测试数据加载器。
 
@@ -287,36 +348,54 @@ def create_data_loaders(
         task_type: 任务类型，"regression" 或 "classification"
         max_length: SMILES token 序列最大长度
         num_workers: 数据加载的进程数
+        normalize: 是否对回归标签进行 z-score 归一化（默认 True）
 
     Returns:
-        (train_loader, val_loader, test_loader) 元组
+        (train_loader, val_loader, test_loader, normalizer) 元组
+        normalizer 为 LabelNormalizer 或 None（分类任务或不 normalize 时）
     """
+    normalizer: Optional[LabelNormalizer] = None
 
     def make_loader(path: str) -> torch.utils.data.DataLoader:
-        """根据文件路径创建 DataLoader（内部函数）。"""
         dataset = MoleculeDataset(
             data_file_path=path, task_type=task_type, max_length=max_length
         )
         return torch.utils.data.DataLoader(
             dataset,
             batch_size=batch_size,
-            # 训练集打乱以增加泛化能力，验证/测试集不打乱以保证顺序可复现
             shuffle=(path == train_path),
             num_workers=num_workers,
-            pin_memory=True,  # 锁页内存，加速 CPU→GPU 数据传输
+            pin_memory=True,
         )
 
-    # 训练集：必须存在
     train_loader = make_loader(train_path)
-    # 验证集：可选，检查路径是否存在
+
+    if normalize and task_type == "regression":
+        normalizer = LabelNormalizer()
+        train_labels = []
+        for _, labels in train_loader:
+            train_labels.extend(labels.numpy().flatten())
+        normalizer.fit(np.array(train_labels))
+
+        normalized_train_dataset = NormalizedDataset(
+            base_dataset=train_loader.dataset,
+            normalizer=normalizer,
+        )
+        train_loader = torch.utils.data.DataLoader(
+            normalized_train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+
     val_loader = (
         make_loader(val_path) if val_path and os.path.exists(val_path) else None
     )
-    # 测试集：可选，检查路径是否存在
     test_loader = (
         make_loader(test_path) if test_path and os.path.exists(test_path) else None
     )
-    return train_loader, val_loader, test_loader
+    return train_loader, val_loader, test_loader, normalizer
 
 
 def list_available_databases(

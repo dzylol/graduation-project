@@ -23,16 +23,18 @@ python train.py --dataset ESOL --epochs 100 --batch_size 32 --device cuda
 # 导入必要的库
 # ============================================================================
 
-import argparse  # 命令行参数解析
-import torch  # PyTorch 深度学习框架
-import torch.nn as nn  # 神经网络模块
-import torch.optim as optim  # 优化器
-from torch.utils.data import DataLoader  # 数据加载器
-import logging  # 日志记录
-import os  # 文件路径操作
-import json  # JSON 文件处理
-from typing import Dict, Any, Optional  # 类型提示
-import time  # 时间测量
+import argparse
+import atexit
+import signal
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+import logging
+import os
+import json
+from typing import Dict, Any, Optional
+import time
 
 from src.db import ExperimentRepository
 
@@ -491,7 +493,7 @@ def main():
     test_path = os.path.join(args.data_dir, args.test_file) if args.test_file else None
 
     logger.info(f"从 {args.data_dir} 加载数据")
-    train_loader, val_loader, test_loader = create_data_loaders(
+    train_loader, val_loader, test_loader, normalizer = create_data_loaders(
         train_path=train_path,
         val_path=val_path,
         test_path=test_path,
@@ -499,7 +501,12 @@ def main():
         task_type=args.task_type,
         max_length=args.max_length,
         num_workers=4,
+        normalize=(args.task_type == "regression"),
     )
+    if normalizer:
+        logger.info(
+            f"Z-score 归一化: mean={normalizer.mean:.4f}, std={normalizer.std:.4f}"
+        )
 
     # 从数据集获取词汇表信息
     vocab_size = train_loader.dataset.get_vocab_size()
@@ -719,4 +726,21 @@ def main():
 # ============================================================================
 
 if __name__ == "__main__":
+    _interrupted = False
+
+    def _cleanup():
+        if _interrupted:
+            return
+        _interrupted = True
+        logger.info("清理 DataLoader worker 进程...")
+
+    def _signal_handler(signum, frame):
+        logger.info(f"收到信号 {signum}，正在退出...")
+        _cleanup()
+        exit(0)
+
+    signal.signal(signal.SIGINT, _signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
+    atexit.register(_cleanup)
+
     main()

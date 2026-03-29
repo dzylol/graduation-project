@@ -10,9 +10,9 @@ Bidirectional Mamba SSM for molecular property prediction. O(N) linear complexit
 ## Entry Points
 | File | Role |
 |------|------|
-| `train.py` | Single-task training (ESOL/BBBP/ClinTox) |
+| `train.py` | Single-task training (ESOL/BBBP/ClinTox/FreeSolv/Lipophilicity) |
 | `eval.py` | Model evaluation on test sets |
-| `download_datasets.py` | Generate example MoleculeNet datasets |
+| `download_datasets.py` | Download full MoleculeNet datasets via DeepChem |
 | `scripts/manage_experiments.py` | SQLite experiment CRUD |
 
 **Note:** `train_multitask.py` referenced in README does NOT exist — do not look for it.
@@ -65,13 +65,35 @@ from src.models.bimamba import BiMambaForPropertyPrediction
 - ≤50 lines per function
 - `validate_smiles()` before RDKit processing
 - Device order: cuda → mps → cpu (see `get_device()`)
+- Z-score normalization is done automatically for regression tasks via `LabelNormalizer`
 
 ## ML-Specific Guidelines
 
 ### Data Pipeline
 - Validate SMILES via `_validate_smiles()` before RDKit processing
 - Cache tokenized sequences to disk
-- Normalize regression targets (z-score)
+- Z-score normalization is done automatically for regression via `LabelNormalizer`
+- `create_data_loaders()` returns `(train_loader, val_loader, test_loader, normalizer)`
+
+### Downloading Datasets
+```bash
+python download_datasets.py                    # Download all via DeepChem
+python download_datasets.py --dataset ESOL   # Specific dataset
+python download_datasets.py --zinc           # ZINC 250K pretraining data
+python download_datasets.py --example         # Force tiny example data
+```
+
+### MoleculeNet Datasets (via DeepChem)
+| Dataset | Task | Molecules | Metric |
+|---------|------|-----------|--------|
+| ESOL | Regression | 1,128 | RMSE |
+| BBBP | Classification | 2,039 | ROC-AUC |
+| ClinTox | Classification | 1,478 | ROC-AUC |
+| FreeSolv | Regression | 642 | RMSE |
+| Lipophilicity | Regression | 4,200 | RMSE |
+
+### Pretraining (Two-Stage)
+For SMILES-Mamba style training: pretrain on ZINC 250K, then fine-tune on downstream tasks.
 
 ### Device Management
 ```python
