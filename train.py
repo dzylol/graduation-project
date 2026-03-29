@@ -513,7 +513,7 @@ def main():
         batch_size=args.batch_size,
         task_type=args.task_type,
         max_length=args.max_length,
-        num_workers=4,
+        num_workers=0,
     )
 
     # 从数据集获取词汇表信息

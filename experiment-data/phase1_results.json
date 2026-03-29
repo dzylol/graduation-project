@@ -12,10 +12,10 @@
       "seed": 42
     },
     "success": true,
-    "elapsed": 77.29663610458374,
+    "elapsed": 63.04094457626343,
     "val_loss": null,
     "stdout": "",
-    "stderr": "3-29 13:05:53,651 - __main__ - INFO - Epoch: 99/100 | Batch: 0/1 | Loss: 0.705782\n2026-03-29 13:05:53,688 - __main__ - INFO - Epoch 99/100 \u5b8c\u6210\uff0c\u8017\u65f6 0.71s | \u8bad\u7ec3\u635f\u5931: 0.705782 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:05:54,380 - __main__ - INFO - Epoch: 100/100 | Batch: 0/1 | Loss: 0.660527\n2026-03-29 13:05:54,419 - __main__ - INFO - Epoch 100/100 \u5b8c\u6210\uff0c\u8017\u65f6 0.72s | \u8bad\u7ec3\u635f\u5931: 0.660527 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:05:54,436 - __main__ - INFO - \u66f4\u65b0\u5b9e\u9a8c\u8bb0\u5f55: ID=15, \u72b6\u6001=completed\n2026-03-29 13:05:54,437 - __main__ - INFO - \u8bad\u7ec3\u5b8c\u6210\uff01\n"
+    "stderr": "3-29 13:14:17,338 - __main__ - INFO - Epoch: 99/100 | Batch: 0/1 | Loss: 0.705782\n2026-03-29 13:14:17,349 - __main__ - INFO - Epoch 99/100 \u5b8c\u6210\uff0c\u8017\u65f6 0.58s | \u8bad\u7ec3\u635f\u5931: 0.705782 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:14:17,982 - __main__ - INFO - Epoch: 100/100 | Batch: 0/1 | Loss: 0.660527\n2026-03-29 13:14:17,994 - __main__ - INFO - Epoch 100/100 \u5b8c\u6210\uff0c\u8017\u65f6 0.63s | \u8bad\u7ec3\u635f\u5931: 0.660527 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:14:18,013 - __main__ - INFO - \u66f4\u65b0\u5b9e\u9a8c\u8bb0\u5f55: ID=19, \u72b6\u6001=completed\n2026-03-29 13:14:18,013 - __main__ - INFO - \u8bad\u7ec3\u5b8c\u6210\uff01\n"
   },
   {
     "exp": {
@@ -30,9 +30,63 @@
       "seed": 42
     },
     "success": true,
-    "elapsed": 168.93280124664307,
+    "elapsed": 122.51521229743958,
     "val_loss": null,
     "stdout": "",
-    "stderr": "3-29 13:08:41,936 - __main__ - INFO - Epoch: 99/100 | Batch: 0/1 | Loss: 0.759818\n2026-03-29 13:08:41,992 - __main__ - INFO - Epoch 99/100 \u5b8c\u6210\uff0c\u8017\u65f6 1.42s | \u8bad\u7ec3\u635f\u5931: 0.759818 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:08:43,270 - __main__ - INFO - Epoch: 100/100 | Batch: 0/1 | Loss: 0.729223\n2026-03-29 13:08:43,327 - __main__ - INFO - Epoch 100/100 \u5b8c\u6210\uff0c\u8017\u65f6 1.32s | \u8bad\u7ec3\u635f\u5931: 0.729223 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:08:43,345 - __main__ - INFO - \u66f4\u65b0\u5b9e\u9a8c\u8bb0\u5f55: ID=16, \u72b6\u6001=completed\n2026-03-29 13:08:43,345 - __main__ - INFO - \u8bad\u7ec3\u5b8c\u6210\uff01\n"
+    "stderr": "3-29 13:16:19,296 - __main__ - INFO - Epoch: 99/100 | Batch: 0/1 | Loss: 0.759818\n2026-03-29 13:16:19,322 - __main__ - INFO - Epoch 99/100 \u5b8c\u6210\uff0c\u8017\u65f6 1.21s | \u8bad\u7ec3\u635f\u5931: 0.759818 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:16:20,465 - __main__ - INFO - Epoch: 100/100 | Batch: 0/1 | Loss: 0.729223\n2026-03-29 13:16:20,492 - __main__ - INFO - Epoch 100/100 \u5b8c\u6210\uff0c\u8017\u65f6 1.16s | \u8bad\u7ec3\u635f\u5931: 0.729223 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:16:20,512 - __main__ - INFO - \u66f4\u65b0\u5b9e\u9a8c\u8bb0\u5f55: ID=20, \u72b6\u6001=completed\n2026-03-29 13:16:20,512 - __main__ - INFO - \u8bad\u7ec3\u5b8c\u6210\uff01\n"
+  },
+  {
+    "exp": {
+      "dataset": "ESOL",
+      "pooling": "mean",
+      "d_model": 128,
+      "n_layers": 6,
+      "batch_size": 16,
+      "learning_rate": 0.001,
+      "dropout": 0.1,
+      "epochs": 100,
+      "seed": 42
+    },
+    "success": true,
+    "elapsed": 183.03130221366882,
+    "val_loss": null,
+    "stdout": "",
+    "stderr": "3-29 13:19:21,691 - __main__ - INFO - Epoch: 99/100 | Batch: 0/1 | Loss: 0.765267\n2026-03-29 13:19:21,730 - __main__ - INFO - Epoch 99/100 \u5b8c\u6210\uff0c\u8017\u65f6 1.79s | \u8bad\u7ec3\u635f\u5931: 0.765267 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:19:23,491 - __main__ - INFO - Epoch: 100/100 | Batch: 0/1 | Loss: 0.750188\n2026-03-29 13:19:23,529 - __main__ - INFO - Epoch 100/100 \u5b8c\u6210\uff0c\u8017\u65f6 1.79s | \u8bad\u7ec3\u635f\u5931: 0.750188 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:19:23,548 - __main__ - INFO - \u66f4\u65b0\u5b9e\u9a8c\u8bb0\u5f55: ID=21, \u72b6\u6001=completed\n2026-03-29 13:19:23,548 - __main__ - INFO - \u8bad\u7ec3\u5b8c\u6210\uff01\n"
+  },
+  {
+    "exp": {
+      "dataset": "ESOL",
+      "pooling": "mean",
+      "d_model": 256,
+      "n_layers": 2,
+      "batch_size": 16,
+      "learning_rate": 0.001,
+      "dropout": 0.1,
+      "epochs": 100,
+      "seed": 42
+    },
+    "success": true,
+    "elapsed": 63.136608600616455,
+    "val_loss": null,
+    "stdout": "",
+    "stderr": "3-29 13:20:26,013 - __main__ - INFO - Epoch: 99/100 | Batch: 0/1 | Loss: 0.508370\n2026-03-29 13:20:26,027 - __main__ - INFO - Epoch 99/100 \u5b8c\u6210\uff0c\u8017\u65f6 0.58s | \u8bad\u7ec3\u635f\u5931: 0.508370 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:20:26,665 - __main__ - INFO - Epoch: 100/100 | Batch: 0/1 | Loss: 0.497314\n2026-03-29 13:20:26,673 - __main__ - INFO - Epoch 100/100 \u5b8c\u6210\uff0c\u8017\u65f6 0.63s | \u8bad\u7ec3\u635f\u5931: 0.497314 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:20:26,689 - __main__ - INFO - \u66f4\u65b0\u5b9e\u9a8c\u8bb0\u5f55: ID=22, \u72b6\u6001=completed\n2026-03-29 13:20:26,689 - __main__ - INFO - \u8bad\u7ec3\u5b8c\u6210\uff01\n"
+  },
+  {
+    "exp": {
+      "dataset": "ESOL",
+      "pooling": "mean",
+      "d_model": 256,
+      "n_layers": 4,
+      "batch_size": 16,
+      "learning_rate": 0.001,
+      "dropout": 0.1,
+      "epochs": 100,
+      "seed": 42
+    },
+    "success": false,
+    "elapsed": 46.36848545074463,
+    "val_loss": null,
+    "stdout": "",
+    "stderr": "Loss: 0.760250\n2026-03-29 13:21:09,740 - __main__ - INFO - Epoch 33/100 \u5b8c\u6210\uff0c\u8017\u65f6 1.17s | \u8bad\u7ec3\u635f\u5931: 0.760250 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:21:10,969 - __main__ - INFO - Epoch: 34/100 | Batch: 0/1 | Loss: 0.750067\n2026-03-29 13:21:10,985 - __main__ - INFO - Epoch 34/100 \u5b8c\u6210\uff0c\u8017\u65f6 1.22s | \u8bad\u7ec3\u635f\u5931: 0.750067 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n2026-03-29 13:21:12,222 - __main__ - INFO - Epoch: 35/100 | Batch: 0/1 | Loss: 0.824382\n2026-03-29 13:21:12,238 - __main__ - INFO - Epoch 35/100 \u5b8c\u6210\uff0c\u8017\u65f6 1.23s | \u8bad\u7ec3\u635f\u5931: 0.824382 | \u9a8c\u8bc1\u635f\u5931: 0.000000\n"
   }
 ]
