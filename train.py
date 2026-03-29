@@ -13,7 +13,8 @@ Bi-Mamba 模型训练脚本
 
 使用方法：
 ```bash
-python train.py --dataset ESOL --epochs 100 --batch_size 32 --device cuda
+python train.py --dataset ESOL --epochs 100 --batch_size 32 --device cuda --model_type manual
+python train.py --dataset ESOL --epochs 100 --batch_size 32 --device cuda --model_type mamba_ssm
 ```
 
 作者: Bi-Mamba-Chem Team
@@ -39,7 +40,14 @@ import time
 from src.db import ExperimentRepository
 
 # 导入本地模块
-from src.models.bimamba import BiMambaForPropertyPrediction, create_bimamba_model
+from src.models.bimamba import BiMambaForPropertyPrediction as BiMambaManual
+from src.models.bimamba import create_bimamba_model as create_bimamba_manual
+from src.models.bimamba_with_mamba_ssm import (
+    BiMambaForPropertyPrediction as BiMambaMambaSSM,
+)
+from src.models.bimamba_with_mamba_ssm import (
+    create_bimamba_model as create_bimamba_mamba_ssm,
+)
 from src.data.molecule_dataset import (
     MoleculeDataset,
     create_data_loaders,
@@ -110,6 +118,13 @@ def parse_args():
     # -------------------------------------------------------------------------
     # 模型参数
     # -------------------------------------------------------------------------
+    parser.add_argument(
+        "--model_type",
+        type=str,
+        default="manual",
+        choices=["manual", "mamba_ssm"],
+        help="模型类型: manual (无外部依赖) 或 mamba_ssm (需要 mamba-ssm 包)",
+    )
     parser.add_argument("--d_model", type=int, default=256, help="模型维度")
     parser.add_argument("--n_layers", type=int, default=4, help="BiMamba 层数")
     parser.add_argument(
@@ -500,6 +515,7 @@ def main():
         batch_size=args.batch_size,
         task_type=args.task_type,
         max_length=args.max_length,
+<<<<<<< HEAD
         num_workers=4,
         normalize=(args.task_type == "regression"),
     )
@@ -527,6 +543,7 @@ def main():
         exp_repo = ExperimentRepository(db_path=db_path)
         exp_name = args.exp_name or f"{args.dataset}_{int(time.time())}"
         model_config = {
+            "model_type": args.model_type,
             "d_model": args.d_model,
             "n_layers": args.n_layers,
             "pooling": args.pooling,
@@ -553,18 +570,31 @@ def main():
     # -------------------------------------------------------------------------
     # 8. 创建模型
     # -------------------------------------------------------------------------
-    logger.info("创建 BiMamba 模型")
-    model = create_bimamba_model(
-        vocab_size=vocab_size,
-        d_model=args.d_model,
-        n_layers=args.n_layers,
-        task_type=args.task_type,
-        num_labels=args.num_labels,
-        pooling=args.pooling,
-        dropout=args.dropout,
-        pad_token_id=pad_token_id,
-    )
-    model = model.to(device)  # 将模型移到设备
+    if args.model_type == "manual":
+        logger.info("创建 BiMamba 模型 (manual SSM, 无外部依赖)")
+        model = create_bimamba_manual(
+            vocab_size=vocab_size,
+            d_model=args.d_model,
+            n_layers=args.n_layers,
+            task_type=args.task_type,
+            num_labels=args.num_labels,
+            pooling=args.pooling,
+            dropout=args.dropout,
+            pad_token_id=pad_token_id,
+        )
+    else:
+        logger.info("创建 BiMamba 模型 (mamba_ssm, 使用 mamba-ssm 包)")
+        model = create_bimamba_mamba_ssm(
+            vocab_size=vocab_size,
+            d_model=args.d_model,
+            n_layers=args.n_layers,
+            task_type=args.task_type,
+            num_labels=args.num_labels,
+            pooling=args.pooling,
+            dropout=args.dropout,
+            pad_token_id=pad_token_id,
+        )
+    model = model.to(device)
 
     # -------------------------------------------------------------------------
     # 8. 打印模型信息

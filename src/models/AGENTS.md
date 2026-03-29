@@ -17,6 +17,9 @@ src/models/
 | `BiMambaEncoder` | class | bimamba.py | Forward + backward BiMambaBlock stacks, fusion |
 | `BiMambaForPropertyPrediction` | class | bimamba.py | Full model: embedding → encoder → pooling → head |
 | `create_bimamba_model` | factory | bimamba.py | `d_model`, `n_layers`, `fusion` (concat/add/gate), `pool_type` (mean/max/cls) |
+| `SelectiveScanMamba` | class | bimamba_with_mamba_ssm.py | Wrapper around mamba_ssmSelectiveScan; accepts input_size, d_state, d_conv, expand |
+| `BiMambaBlockWrapper` | class | bimamba_with_mamba_ssm.py | Wraps SelectiveScanMamba with dropout, residual, layer norm |
+| `BiMambaEncoderWrapper` | class | bimamba_with_mamba_ssm.py | Stacks BiMambaBlockWrapper layers with fusion modes |
 
 ## Fusion Modes
 - `gate` (default): `sigmoid(W_fwd) * fwd + (1-sigmoid(W_fwd)) * bwd`

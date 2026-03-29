@@ -1,0 +1,16 @@
+STEP 1/8: FROM docker.io/pytorch/pytorch:2.4.0-cuda12.4-cudnn9-devel
+STEP 2/8: WORKDIR /app
+--> Using cache 8e05e345adf442d96bbf21cb8329ba0395bc5ef4ef8e1e9328ff8dd2b0bc5eb0
+--> 8e05e345adf4
+STEP 3/8: COPY requirements.txt .
+--> Using cache 96cc3626ba146a103b612e8c4ebf3c94c746fe3e5b65fb38a85faa36e4b92fff
+--> 96cc3626ba14
+STEP 4/8: RUN pip install --no-cache-dir causal-conv1d>=1.4.0 mamba-ssm --no-build-isolation
+WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7bba1ec85690>: Failed to establish a new connection: [Errno 111] Connection refused'))': /simple/causal-conv1d/
+WARNING: Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7bba1ed6ea10>: Failed to establish a new connection: [Errno 111] Connection refused'))': /simple/causal-conv1d/
+WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7bba1ec86910>: Failed to establish a new connection: [Errno 111] Connection refused'))': /simple/causal-conv1d/
+WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7bba1ec87010>: Failed to establish a new connection: [Errno 111] Connection refused'))': /simple/causal-conv1d/
+WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x7bba1ec87810>: Failed to establish a new connection: [Errno 111] Connection refused'))': /simple/causal-conv1d/
+ERROR: Could not find a version that satisfies the requirement causal-conv1d (from versions: none)
+ERROR: No matching distribution found for causal-conv1d
+Error: building at STEP "RUN pip install --no-cache-dir causal-conv1d>=1.4.0 mamba-ssm --no-build-isolation": while running runtime: exit status 1
