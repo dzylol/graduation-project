@@ -14,36 +14,27 @@
 | 组件 | 状态 | 详情 |
 |------|------|------|
 | **镜像** | ✅ | `localhost/bimamba-train:latest` (已构建) |
-| **GPU** | ⏳ | 服务器 16GB GPU (待验证) |
-| **PyTorch** | ✅ | 2.4.0 + CUDA 12.4 |
-| **RDKit** | ✅ | 2025.9.6 |
+| **GPU** | ✅ | **RTX 5060 Ti 16GB (sm_120)** |
+| **PyTorch** | ✅ | **2.12.0.dev20260328+cu128** (nightly, sm_120支持) |
+| **CUDA** | ✅ | **12.8** |
+| **mamba-ssm** | ✅ | **2.3.1** |
+| **causal_conv1d** | ✅ | 1.4.0+ |
+| **RDKit** | ✅ | rdkit-pypi |
 | **scikit-learn** | ✅ | 1.8.0 |
-| **数据集** | ⏳ | 需在服务器上运行 `download_datasets.py` |
-| **训练测试** | ⏳ | 需在服务器上验证 |
+| **NumPy** | ✅ | 1.26.4 (兼容 RDKit) |
+| **数据集** | ⏳ | 需运行 `download_datasets.py` |
+| **训练测试** | ✅ | `train.py --help` 正常 |
 
-### 1.2 服务器部署步骤
+### 1.2 关键配置说明
+
+> **重要**: RTX 5060 Ti 使用 Blackwell 架构 (sm_120)，需要 PyTorch nightly + CUDA 12.8+支持。PyTorch 2.4.0 最高只支持 sm_90，无法在此 GPU 上运行。
+
+**容器运行命令** (CDI 模式):
 ```bash
-# 1. 上传项目到服务器
-scp -r /home/ziyu/graduation-project user@server:/path/to/
-
-# 2. 在服务器上构建镜像（如需要）
-podman build -t localhost/bimamba-train:latest .
-
-# 3. 启动容器并下载数据
-podman run --gpus all --rm -it \
-  -v /path/to/graduation-project:/workspace \
-  localhost/bimamba-train:latest bash
-  
-  # 容器内
-  python /workspace/download_datasets.py
-
-# 4. 验证环境
-python -c "import torch; print('CUDA:', torch.cuda.is_available())"
-python -c "import rdkit; print('RDKit:', rdkit.__version__)"
-
-# 5. 运行训练测试
-python /workspace/train.py --dataset ESOL --d_model 128 --n_layers 2 --epochs 1
-```
+# Podman GPU passthrough (CDI)
+podman run --device nvidia.com/gpu=all -e NVIDIA_VISIBLE_DEVICES=all \
+  -v /home/qfh/graduation-project:/workspace \
+  localhost/bimamba-train:latest python3.11 train.py [args...]
 
 ---
 
@@ -208,11 +199,14 @@ batch_size (根据固定的最佳结构):
 ## 四、实验执行脚本
 
 ### 4.1 自动批量训练脚本 (16GB GPU 优化版)
+
 ```python
 #!/usr/bin/env python3
 """
 batch_train.py - 批量自动训练脚本 (16GB GPU 优化)
 输出目录: experiment-data/
+
+运行方式 (容器内): python3.11 batch_train.py
 """
 import itertools
 import subprocess
@@ -262,7 +256,7 @@ def run_experiment(exp_config, seed=42):
     os.makedirs(output_dir, exist_ok=True)
     
     cmd = [
-        "python", "train.py",
+        "python3.11", "train.py",
         "--dataset", exp_config["dataset"],
         "--d_model", str(exp_config["d_model"]),
         "--n_layers", str(exp_config["n_layers"]),
@@ -286,14 +280,12 @@ for dataset in ["ESOL", "BBBP", "ClinTox"]:
         print(f"Running: {dataset} - d_model={exp['d_model']}, "
               f"n_layers={exp['n_layers']}, pooling={exp['pooling']}, "
               f"batch_size={exp['batch_size']}")
-        # run_experiment(exp)
-```
 
 ### 4.2 快速启动命令（手动单次训练）
 
 ```bash
 # ESOL 回归示例 (d_model=256, n_layers=4 -> batch_size=32)
-python train.py \
+python3.11 train.py \
     --dataset ESOL \
     --d_model 256 \
     --n_layers 4 \
@@ -306,7 +298,7 @@ python train.py \
     --seed 42
 
 # BBBP 分类示例 (d_model=512, n_layers=6 -> batch_size=8, 16GB GPU 安全)
-python train.py \
+python3.11 train.py \
     --dataset BBBP \
     --task_type classification \
     --d_model 512 \
@@ -413,22 +405,27 @@ def find_best_config(df, metric="val_loss", minimize=True):
 ## 七、建议的实验顺序
 
 ```
-Week 1 (Day 1-2): 环境搭建与验证
-  ├── 修复 mamba-env 缺少的包 (rdkit, sklearn)
-  ├── 下载并验证数据集
-  └── 运行 1-2 个 quick test 确保流程通顺
+✅ 环境搭建与验证 (已完成)
+   ├── Docker镜像构建完成 (localhost/bimamba-train:latest)
+   ├── GPU验证: RTX 5060 Ti 16GB (sm_120)
+   ├── PyTorch CUDA验证: 2.12.0.dev+cu128
+   ├── mamba-ssm验证: 2.3.1
+   └── RDKit/Scikit-learn验证: OK
 
-Week 1 (Day 3-5): Phase 1 - 模型结构探索
-  ├── 81 experiments
-  └── 每天约 27 个实验
+⏳ 下一步: 下载并验证数据集
+   └── 运行: python3.11 download_datasets.py
 
-Week 2 (Day 1-2): Phase 2 - 训练策略优化
-  ├── 54 experiments
-  └── 每天约 27 个实验
+Phase 1 (Day 1-3): 模型结构探索
+   ├── 81 experiments
+   └── 每天约 27 个实验
 
-Week 2 (Day 3): Phase 3 - 最终验证
-  ├── 15 experiments (5 runs × 3 datasets)
-  └── 结果分析与报告
+Phase 2 (Day 4-5): 训练策略优化
+   ├── 54 experiments
+   └── 每天约 27 个实验
+
+Phase 3 (Day 6): 最终验证
+   ├── 15 experiments (5 runs × 3 datasets)
+   └── 结果分析与报告
 ```
 
 ---
@@ -467,27 +464,33 @@ experiment-data/
 
 ## 附录: Dockerfile 构建
 
-构建支持 16GB GPU 的训练镜像：
+> **已构建完成**: `localhost/bimamba-train:latest` 镜像已可用。
 
+**关键配置** (RTX 5060 Ti sm_120):
+- 基础镜像: `nvidia/cuda:13.2.0-cudnn-devel-ubuntu22.04`
+- Python: 3.11
+- PyTorch: nightly `cu128` index (`torch-2.12.0.dev20260328+cu128`)
+- mamba-ssm/causal-conv1d: 从源码编译
+- NumPy: 1.26.x (RDKit 兼容)
+
+**运行命令** (CDI GPU passthrough):
 ```bash
-# 构建镜像
-podman build -t localhost/bimamba-train:latest .
+# 交互式
+podman run --device nvidia.com/gpu=all -e NVIDIA_VISIBLE_DEVICES=all -it \
+  -v /home/qfh/graduation-project:/workspace \
+  localhost/bimamba-train:latest bash
 
-# 验证镜像
-podman run --rm localhost/bimamba-train:latest python -c "import torch; print('CUDA:', torch.cuda.is_available())"
-
-# 运行训练 (示例) - 数据输出到 experiment-data/
-podman run --gpus all --rm \
-  -v /home/ziyu/graduation-project:/workspace \
+# 直接运行训练
+podman run --device nvidia.com/gpu=all -e NVIDIA_VISIBLE_DEVICES=all \
+  -v /home/qfh/graduation-project:/workspace \
   localhost/bimamba-train:latest \
-  python /workspace/train.py \
+  python3.11 train.py \
     --dataset ESOL \
     --d_model 256 \
     --n_layers 4 \
     --batch_size 32 \
     --epochs 100 \
-    --output_dir /workspace/experiment-data/checkpoints \
-    --db_path /workspace/experiment-data/experiments.db
+    --device cuda
 ```
 
-> **注意**: `--gpus all` 需要 NVIDIA Container Toolkit 支持
+> **注意**: 使用 `--device nvidia.com/gpu=all` (CDI) 而非 `--gpus all` (已弃用)
