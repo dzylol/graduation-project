@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 
-
 # ============================================================================
 # 导入必要的库
 # ============================================================================
@@ -25,7 +24,14 @@ from sklearn.metrics import (
 )
 
 # 导入本地模块
-from src.models.bimamba import BiMambaForPropertyPrediction, create_bimamba_model
+from src.models.bimamba import BiMambaForPropertyPrediction as BiMambaManual
+from src.models.bimamba import create_bimamba_model as create_bimamba_manual
+from src.models.bimamba_with_mamba_ssm import (
+    BiMambaForPropertyPrediction as BiMambaMambaSSM,
+)
+from src.models.bimamba_with_mamba_ssm import (
+    create_bimamba_model as create_bimamba_mamba_ssm,
+)
 from src.data.molecule_dataset import (
     MoleculeDataset,
     create_data_loaders,
@@ -78,6 +84,13 @@ def parse_args():
     # 模型参数（需要与训练时保持一致）
     # -------------------------------------------------------------------------
     parser.add_argument("--checkpoint", type=str, required=True, help="模型检查点路径")
+    parser.add_argument(
+        "--model_type",
+        type=str,
+        default="manual",
+        choices=["manual", "mamba_ssm"],
+        help="模型类型: manual (无外部依赖) 或 mamba_ssm (需要 mamba-ssm 包)",
+    )
     parser.add_argument("--d_model", type=int, default=256, help="模型维度")
     parser.add_argument("--n_layers", type=int, default=4, help="BiMamba 层数")
     parser.add_argument(
@@ -360,17 +373,33 @@ def main():
     # -------------------------------------------------------------------------
     # 6. 创建模型
     # -------------------------------------------------------------------------
-    logger.info("创建 BiMamba 模型")
-    model = create_bimamba_model(
-        vocab_size=vocab_size,
-        d_model=args.d_model,
-        n_layers=args.n_layers,
-        task_type=args.task_type,
-        num_labels=args.num_labels,
-        pooling=args.pooling,
-        dropout=args.dropout,
-        pad_token_id=pad_token_id,
-    )
+    # 根据 model_type 选择模型实现
+    model_type = getattr(args, "model_type", "manual")
+
+    if model_type == "mamba_ssm":
+        logger.info("创建 BiMamba 模型 (mamba_ssm, 使用 mamba-ssm 包)")
+        model = create_bimamba_mamba_ssm(
+            vocab_size=vocab_size,
+            d_model=args.d_model,
+            n_layers=args.n_layers,
+            task_type=args.task_type,
+            num_labels=args.num_labels,
+            pooling=args.pooling,
+            dropout=args.dropout,
+            pad_token_id=pad_token_id,
+        )
+    else:
+        logger.info("创建 BiMamba 模型 (manual SSM, 无外部依赖)")
+        model = create_bimamba_manual(
+            vocab_size=vocab_size,
+            d_model=args.d_model,
+            n_layers=args.n_layers,
+            task_type=args.task_type,
+            num_labels=args.num_labels,
+            pooling=args.pooling,
+            dropout=args.dropout,
+            pad_token_id=pad_token_id,
+        )
     model = model.to(device)
 
     # -------------------------------------------------------------------------

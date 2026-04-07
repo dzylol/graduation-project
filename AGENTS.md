@@ -4,6 +4,12 @@
 **Commit:** 4e2d9f2 (main)
 **Language:** Python (PyTorch + RDKit)
 
+When reasoning through a problem, use draft-style thinking:
+- Keep reasoning steps brief (≤5 words per step)
+- Only expand when writing final code or answer
+- No verbose explanations unless explicitly asked
+
+
 ## Overview
 Bidirectional Mamba SSM for molecular property prediction. O(N) linear complexity vs Transformer's O(N²).
 
@@ -153,7 +159,7 @@ train.py, eval.py, download_datasets.py
 |--------|--------|
 | CI/CD | **None** — no GitHub Actions, Docker, or automated pipelines |
 | Anti-patterns | **Clean** — no DO NOT/NEVER/ALWAYS/WARNING comments in source |
-| Package config | **None** — not pip-installable (use `PYTHONPATH=.` or `pip install -e .`) |
+| Package config | **None** — missing `__init__.py` in `src/models/` and `src/data/`; not pip-installable (use `PYTHONPATH=.`) |
 | Test config | **None** — pytest runs without config file |
 
 ## Module-Specific AGENTS.md
