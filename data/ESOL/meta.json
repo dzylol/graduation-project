@@ -1,8 +1,0 @@
-{
-  "name": "ESOL",
-  "task_type": "regression",
-  "description": "水溶解度预测",
-  "num_train": 35,
-  "num_val": 7,
-  "num_test": 8
-}

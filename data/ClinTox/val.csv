@@ -1,8 +1,0 @@
-smiles,label
-CC(C)CC(C)C,0
-c1ccc(cc1)C#N,0
-c1ccc(cc1)NC(C)C(C)C,1
-c1ccc(cc1)CCCC,0
-CC(C)NCc1ccc2ccccc2c1,1
-c1ccc(cc1)NC(C)Cc1ccccc1C,1
-CC(C)NCc1ccc(cc1)OC,1

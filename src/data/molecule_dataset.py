@@ -356,19 +356,21 @@ def create_data_loaders(
     """
     normalizer: Optional[LabelNormalizer] = None
 
-    def make_loader(path: str) -> torch.utils.data.DataLoader:
+    def make_loader(path: str, is_train: bool = False) -> torch.utils.data.DataLoader:
         dataset = MoleculeDataset(
             data_file_path=path, task_type=task_type, max_length=max_length
         )
-        return torch.utils.data.DataLoader(
-            dataset,
+        loader_kwargs = dict(
             batch_size=batch_size,
             shuffle=(path == train_path),
             num_workers=num_workers,
             pin_memory=True,
+            persistent_workers=True if num_workers > 0 and is_train else False,
+            prefetch_factor=4 if num_workers > 0 else None,
         )
+        return torch.utils.data.DataLoader(dataset, **loader_kwargs)
 
-    train_loader = make_loader(train_path)
+    train_loader = make_loader(train_path, is_train=True)
 
     if normalize and task_type == "regression":
         normalizer = LabelNormalizer()
@@ -387,6 +389,8 @@ def create_data_loaders(
             shuffle=True,
             num_workers=num_workers,
             pin_memory=True,
+            persistent_workers=True if num_workers > 0 else False,
+            prefetch_factor=4 if num_workers > 0 else None,
         )
 
     val_loader = (

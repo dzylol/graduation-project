@@ -1,0 +1,651 @@
+primaryid,drugname,pt,role_cod,age,sex,drug_id
+184614762,linezolid,hyperkalaemia,PS,71.0,F,CID100003929
+208493885,pregabalin,panic reaction,PS,59.0,F,CID100125889
+208493885,pregabalin,fear,PS,59.0,F,CID100125889
+177156745,fluoxetine,myoclonus,PS,,F,CID100003386
+177156745,fluoxetine,clonus,PS,,F,CID100003386
+177156745,fluoxetine,drug withdrawal syndrome neonatal,PS,,F,CID100003386
+177156745,fluoxetine,poor sucking reflex,PS,,F,CID100003386
+177156745,fluoxetine,hyporesponsive to stimuli,PS,,F,CID100003386
+177156745,fluoxetine,hypotonia neonatal,PS,,F,CID100003386
+177156745,fluoxetine,irregular breathing,PS,,F,CID100003386
+177156745,fluoxetine,labelled drug-drug interaction medication error,PS,,F,CID100003386
+156360428,celecoxib,drug effective for unapproved indication,PS,35.0,F,CID100002662
+156360428,celecoxib,drug effective for unapproved indication,PS,35.0,F,CID100002662
+156360428,celecoxib,anaemia,PS,35.0,F,CID100002662
+156360428,celecoxib,anaemia,PS,35.0,F,CID100002662
+1774563816,budesonide,lung neoplasm malignant,PS,52.0,F,CID100002462
+1774563816,budesonide,lung neoplasm malignant,PS,52.0,F,CID100002462
+1774563816,budesonide,lung neoplasm malignant,PS,52.0,F,CID100002462
+1774563816,budesonide,lung neoplasm malignant,PS,52.0,F,CID100002462
+1774563816,budesonide,wheezing,PS,52.0,F,CID100002462
+1774563816,budesonide,wheezing,PS,52.0,F,CID100002462
+1774563816,budesonide,wheezing,PS,52.0,F,CID100002462
+1774563816,budesonide,wheezing,PS,52.0,F,CID100002462
+220587982,cyclophosphamide,cytokine release syndrome,PS,64.0,F,CID100002907
+159651562,amiodarone,depressed level of consciousness,PS,76.0,F,CID100002156
+208055804,pregabalin,anxiety,PS,59.0,F,CID100125889
+208055804,pregabalin,hepatic enzyme,PS,59.0,F,CID100125889
+185323342,acyclovir,urinary tract infection,PS,,,CID100002022
+185323342,acyclovir,urinary tract infection,PS,,,CID100002022
+185323342,acyclovir,urinary tract infection,PS,,,CID100002022
+200135607,gemcitabine,pleural effusion,PS,68.0,F,CID100003461
+186003962,cytarabine,death,PS,30.0,M,CID100000596
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,pyrexia,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+143195354,dexamethasone,bronchitis,PS,77.0,M,CID100003003
+184896425,venlafaxine,sinus arrhythmia,PS,24.0,F,CID100005656
+184896425,venlafaxine,vision blurred,PS,24.0,F,CID100005656
+184896425,venlafaxine,electric shock sensation,PS,24.0,F,CID100005656
+184896425,venlafaxine,inappropriate schedule of product discontinuation,PS,24.0,F,CID100005656
+184896425,venlafaxine,restlessness,PS,24.0,F,CID100005656
+184896425,venlafaxine,emotional poverty,PS,24.0,F,CID100005656
+184896425,venlafaxine,amnesia,PS,24.0,F,CID100005656
+184896425,venlafaxine,fatigue,PS,24.0,F,CID100005656
+184896425,venlafaxine,illusion,PS,24.0,F,CID100005656
+209355562,meropenem,drug resistance,PS,35.0,M,CID100060706
+209292292,metronidazole,treatment failure,PS,12.0,,CID100004173
+209292292,metronidazole,treatment failure,PS,12.0,,CID100004173
+209292292,metronidazole,treatment failure,PS,12.0,,CID100004173
+209292292,metronidazole,treatment failure,PS,12.0,,CID100004173
+209292292,metronidazole,treatment failure,PS,12.0,,CID100004173
+155685382,prednisone,pneumonia,PS,75.0,M,CID100004900
+155685382,prednisone,pneumonia,PS,75.0,M,CID100004900
+184293272,efavirenz,insomnia,PS,52.0,M,CID100003203
+1608291623,ramipril,oedema,PS,44.0,F,CID100005038
+1608291623,ramipril,hypertension,PS,44.0,F,CID100005038
+1608291623,ramipril,road traffic accident,PS,44.0,F,CID100005038
+1608291623,ramipril,drug ineffective,PS,44.0,F,CID100005038
+1608291623,ramipril,lower respiratory tract infection,PS,44.0,F,CID100005038
+1608291623,ramipril,porphyria acute,PS,44.0,F,CID100005038
+1608291623,ramipril,medication error,PS,44.0,F,CID100005038
+1608291623,ramipril,type 2 diabetes mellitus,PS,44.0,F,CID100005038
+1608291623,ramipril,musculoskeletal stiffness,PS,44.0,F,CID100005038
+1608291623,ramipril,sleep disorder,PS,44.0,F,CID100005038
+1608291623,ramipril,osteoarthritis,PS,44.0,F,CID100005038
+1608291623,ramipril,nasopharyngitis,PS,44.0,F,CID100005038
+1608291623,ramipril,c-reactive protein abnormal,PS,44.0,F,CID100005038
+1608291623,ramipril,pain in extremity,PS,44.0,F,CID100005038
+1608291623,ramipril,delirium,PS,44.0,F,CID100005038
+1608291623,ramipril,oedema peripheral,PS,44.0,F,CID100005038
+1608291623,ramipril,hand deformity,PS,44.0,F,CID100005038
+1608291623,ramipril,abdominal pain upper,PS,44.0,F,CID100005038
+1608291623,ramipril,muscle injury,PS,44.0,F,CID100005038
+1608291623,ramipril,blister,PS,44.0,F,CID100005038
+1608291623,ramipril,rectal haemorrhage,PS,44.0,F,CID100005038
+208365852,metronidazole,hypercalcaemia,PS,20.0,F,CID100004173
+208365852,metronidazole,hypercalcaemia,PS,20.0,F,CID100004173
+208365852,metronidazole,hypercalcaemia,PS,20.0,F,CID100004173
+208365852,metronidazole,hypercalcaemia,PS,20.0,F,CID100004173
+208365852,metronidazole,hypercalcaemia,PS,20.0,F,CID100004173
+208365852,metronidazole,loss of consciousness,PS,20.0,F,CID100004173
+208365852,metronidazole,loss of consciousness,PS,20.0,F,CID100004173
+208365852,metronidazole,loss of consciousness,PS,20.0,F,CID100004173
+208365852,metronidazole,loss of consciousness,PS,20.0,F,CID100004173
+208365852,metronidazole,loss of consciousness,PS,20.0,F,CID100004173
+177950162,metformin,urticaria,PS,68.0,M,CID100004091
+201154363,clopidogrel,hypotension,PS,82.0,F,CID100002806
+155784472,terbinafine,scedosporium infection,PS,27.0,M,CID100005402
+155784472,terbinafine,scedosporium infection,PS,27.0,M,CID100005402
+155784472,terbinafine,drug resistance,PS,27.0,M,CID100005402
+155784472,terbinafine,drug resistance,PS,27.0,M,CID100005402
+209902215,cladribine,escherichia pyelonephritis,PS,49.0,F,CID100001546
+2089844110,celecoxib,tearfulness,PS,54.0,M,CID100002662
+2089844110,celecoxib,tearfulness,PS,54.0,M,CID100002662
+2089844110,celecoxib,psychotic disorder,PS,54.0,M,CID100002662
+2089844110,celecoxib,psychotic disorder,PS,54.0,M,CID100002662
+2089844110,celecoxib,depression suicidal,PS,54.0,M,CID100002662
+2089844110,celecoxib,depression suicidal,PS,54.0,M,CID100002662
+2089844110,celecoxib,anxiety,PS,54.0,M,CID100002662
+2089844110,celecoxib,anxiety,PS,54.0,M,CID100002662
+158777918,valganciclovir,septic shock,PS,76.0,F,CID100064147
+1659569520,phenylephrine,product use issue,PS,,F,CID100004782
+1659569520,phenylephrine,product use issue,PS,,F,CID100004782
+1659569520,phenylephrine,product use issue,PS,,F,CID100004782
+1659569520,phenylephrine,product use issue,PS,,F,CID100004782
+1659569520,phenylephrine,product use issue,PS,,F,CID100004782
+1659569520,phenylephrine,product use issue,PS,,F,CID100004782
+1659569520,phenylephrine,sinus rhythm,PS,,F,CID100004782
+1659569520,phenylephrine,sinus rhythm,PS,,F,CID100004782
+1659569520,phenylephrine,sinus rhythm,PS,,F,CID100004782
+1659569520,phenylephrine,sinus rhythm,PS,,F,CID100004782
+1659569520,phenylephrine,sinus rhythm,PS,,F,CID100004782
+1659569520,phenylephrine,sinus rhythm,PS,,F,CID100004782
+167393292,amoxicillin,phonophobia,PS,55.0,M,CID100002171
+194671563,acyclovir,herpes simplex reactivation,PS,,,CID100002022
+194671563,acyclovir,herpes simplex reactivation,PS,,,CID100002022
+194671563,acyclovir,herpes simplex reactivation,PS,,,CID100002022
+194671563,acyclovir,renal impairment,PS,,,CID100002022
+194671563,acyclovir,renal impairment,PS,,,CID100002022
+194671563,acyclovir,renal impairment,PS,,,CID100002022
+178172498,valsartan,product contamination,PS,75.0,F,CID100005650
+178172498,valsartan,haemangioma of bone,PS,75.0,F,CID100005650
+178172498,valsartan,hypercholesterolaemia,PS,75.0,F,CID100005650
+178172498,valsartan,chronic gastritis,PS,75.0,F,CID100005650
+178172498,valsartan,hypokalaemia,PS,75.0,F,CID100005650
+178172498,valsartan,atrial fibrillation,PS,75.0,F,CID100005650
+178172498,valsartan,emotional distress,PS,75.0,F,CID100005650
+178172498,valsartan,osteochondrosis,PS,75.0,F,CID100005650
+178172498,valsartan,hiatus hernia,PS,75.0,F,CID100005650
+216872524,nitroglycerin,abdominal pain upper,PS,53.0,F,CID100004510
+216872524,nitroglycerin,abdominal pain upper,PS,53.0,F,CID100004510
+216872524,nitroglycerin,obstructive sleep apnoea syndrome,PS,53.0,F,CID100004510
+216872524,nitroglycerin,obstructive sleep apnoea syndrome,PS,53.0,F,CID100004510
+216872524,nitroglycerin,agitation,PS,53.0,F,CID100004510
+216872524,nitroglycerin,agitation,PS,53.0,F,CID100004510
+216872524,nitroglycerin,depression,PS,53.0,F,CID100004510
+216872524,nitroglycerin,depression,PS,53.0,F,CID100004510
+216872524,nitroglycerin,pneumonia,PS,53.0,F,CID100004510
+216872524,nitroglycerin,pneumonia,PS,53.0,F,CID100004510
+216872524,nitroglycerin,vomiting,PS,53.0,F,CID100004510
+216872524,nitroglycerin,vomiting,PS,53.0,F,CID100004510
+204194112,fluconazole,drug reaction with eosinophilia and systemic symptoms,PS,,,CID100003365
+204194112,fluconazole,drug reaction with eosinophilia and systemic symptoms,PS,,,CID100003365
+189831627,rosuvastatin,hepatocellular injury,PS,76.0,F,CID100129806
+189831627,rosuvastatin,drug-induced liver injury,PS,76.0,F,CID100129806
+189831627,rosuvastatin,drug level above therapeutic,PS,76.0,F,CID100129806
+200170373,amlodipine,illness,PS,69.0,F,CID100002162
+1895819552,simvastatin,blood creatine phosphokinase increased,PS,71.0,F,CID100054454
+149571952,moxifloxacin,pulmonary congestion,PS,40.0,F,CID100004259
+149571952,moxifloxacin,pulmonary congestion,PS,40.0,F,CID100004259
+149571952,moxifloxacin,urticaria,PS,40.0,F,CID100004259
+149571952,moxifloxacin,urticaria,PS,40.0,F,CID100004259
+149571952,moxifloxacin,drug hypersensitivity,PS,40.0,F,CID100004259
+149571952,moxifloxacin,drug hypersensitivity,PS,40.0,F,CID100004259
+1653110310,letrozole,cough,PS,53.0,F,CID100003902
+197903302,cinacalcet,metastases to lymph nodes,PS,46.0,F,CID100156418
+163297942,acetaminophen,erythema,PS,20.0,M,CID100001983
+156004172,aripiprazole,treatment noncompliance,PS,43.0,F,CID100060795
+208895292,amoxicillin,intervertebral disc degeneration,PS,75.0,F,CID100002171
+192614943,melphalan,nausea,PS,50.0,F,CID100004053
+151635343,moxifloxacin,contraindicated product administered,PS,36.0,F,CID100004259
+151635343,moxifloxacin,contraindicated product administered,PS,36.0,F,CID100004259
+186978863,leflunomide,headache,PS,66.0,F,CID100003899
+186978863,leflunomide,inflammation,PS,66.0,F,CID100003899
+186978863,leflunomide,intentional product use issue,PS,66.0,F,CID100003899
+186978863,leflunomide,drug use disorder,PS,66.0,F,CID100003899
+198395862,haloperidol,hyperkinesia,PS,27.0,F,CID100003559
+198395862,haloperidol,catatonia,PS,27.0,F,CID100003559
+162555442,prednisone,neuralgia,PS,76.0,M,CID100004900
+162555442,prednisone,neuralgia,PS,76.0,M,CID100004900
+162555442,prednisone,gangrene,PS,76.0,M,CID100004900
+162555442,prednisone,gangrene,PS,76.0,M,CID100004900
+192676373,furosemide,drug intolerance,PS,61.0,F,CID100003440
+182145362,hydrocortisone,shock,PS,73.0,F,CID100003642
+2115764211,azithromycin,pain,PS,65.0,F,CID100002269
+2115764211,azithromycin,pain,PS,65.0,F,CID100002269
+2115764211,azithromycin,chronic sinusitis,PS,65.0,F,CID100002269
+2115764211,azithromycin,chronic sinusitis,PS,65.0,F,CID100002269
+206991543,melphalan,oesophagitis,PS,52.0,F,CID100004053
+209570866,buprenorphine,fatigue,PS,,,CID100002476
+209570866,buprenorphine,fatigue,PS,,,CID100002476
+177092603,valganciclovir,colitis,PS,9.0,F,CID100064147
+189516112,letrozole,nephrogenic diabetes insipidus,PS,64.0,F,CID100003902
+186369112,levetiracetam,infection,PS,71.0,M,CID100059708
+186369112,levetiracetam,atrial fibrillation,PS,71.0,M,CID100059708
+145103368,omeprazole,foetal exposure during pregnancy,PS,27.0,,CID100004594
+145103368,omeprazole,foetal exposure during pregnancy,PS,27.0,,CID100004594
+186360462,metformin,cardiac failure,PS,79.0,M,CID100004091
+204579025,gabapentin,visual snow syndrome,PS,15.0,F,CID100003446
+213620272,metformin,urinary tract infection,PS,,M,CID100004091
+172308152,levetiracetam,rash,PS,,,CID100059708
+190210303,bisoprolol,asthenia,PS,65.0,F,CID100002405
+190210303,bisoprolol,vomiting,PS,65.0,F,CID100002405
+190210303,bisoprolol,respiratory tract congestion,PS,65.0,F,CID100002405
+190210303,bisoprolol,sinus congestion,PS,65.0,F,CID100002405
+190210303,bisoprolol,sinus disorder,PS,65.0,F,CID100002405
+190210303,bisoprolol,blood pressure increased,PS,65.0,F,CID100002405
+190210303,bisoprolol,arterial occlusive disease,PS,65.0,F,CID100002405
+190210303,bisoprolol,adjustment disorder,PS,65.0,F,CID100002405
+190210303,bisoprolol,influenza,PS,65.0,F,CID100002405
+190210303,bisoprolol,hemiparesis,PS,65.0,F,CID100002405
+190210303,bisoprolol,confusional state,PS,65.0,F,CID100002405
+129337634,leflunomide,headache,PS,63.0,F,CID100003899
+210909942,valganciclovir,no adverse event,PS,53.0,M,CID100064147
+210909942,valganciclovir,hcov-oc43 infection,PS,53.0,M,CID100064147
+165494522,valsartan,cough,PS,56.0,M,CID100005650
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+215571652,dexamethasone,drug ineffective,PS,24.0,,CID100003003
+1575485410,citalopram,cardiac death,PS,32.0,M,CID100002771
+1575485410,citalopram,cardiac death,PS,32.0,M,CID100002771
+209979533,diclofenac,mental disorder,PS,51.0,M,CID100003032
+209979533,diclofenac,mental disorder,PS,51.0,M,CID100003032
+209979533,diclofenac,mental disorder,PS,51.0,M,CID100003032
+209979533,diclofenac,mental disorder,PS,51.0,M,CID100003032
+157490702,glimepiride,toxicity to various agents,PS,41.0,F,CID100003476
+155315033,levetiracetam,large granular lymphocytosis,PS,53.0,M,CID100059708
+164188053,fluoxetine,tremor,PS,11.0,F,CID100003386
+152253737,citalopram,respiratory failure,PS,,,CID100002771
+152253737,citalopram,respiratory failure,PS,,,CID100002771
+152253737,citalopram,dysarthria,PS,,,CID100002771
+152253737,citalopram,dysarthria,PS,,,CID100002771
+168036082,clopidogrel,sudden cardiac death,PS,58.0,M,CID100002806
+181381583,meropenem,candida infection,PS,3.0,M,CID100060706
+220375652,docetaxel,haematotoxicity,PS,56.0,F,CID100003143
+200127832,budesonide,drug ineffective,PS,19.0,,CID100002462
+200127832,budesonide,drug ineffective,PS,19.0,,CID100002462
+200127832,budesonide,drug ineffective,PS,19.0,,CID100002462
+200127832,budesonide,drug ineffective,PS,19.0,,CID100002462
+156071932,amlodipine,overdose,PS,71.0,F,CID100002162
+179156932,furosemide,condition aggravated,PS,88.0,F,CID100003440
+151013604,ramipril,congenital aplasia,PS,1.0,F,CID100005038
+151013604,ramipril,atrial septal defect,PS,1.0,F,CID100005038
+151013604,ramipril,premature baby,PS,1.0,F,CID100005038
+142841204,acetaminophen,methaemoglobinaemia,PS,78.0,F,CID100001983
+210073902,estradiol,product use in unapproved indication,PS,,,CID100000450
+210073902,estradiol,product use in unapproved indication,PS,,,CID100000450
+1692687810,valsartan,depressed mood,PS,78.0,F,CID100005650
+1692687810,valsartan,exercise tolerance decreased,PS,78.0,F,CID100005650
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+159593712,dexamethasone,endocarditis,PS,55.0,F,CID100003003
+172156164,acyclovir,systemic lupus erythematosus,PS,,F,CID100002022
+172156164,acyclovir,systemic lupus erythematosus,PS,,F,CID100002022
+172156164,acyclovir,systemic lupus erythematosus,PS,,F,CID100002022
+172156164,acyclovir,osteonecrosis,PS,,F,CID100002022
+172156164,acyclovir,osteonecrosis,PS,,F,CID100002022
+172156164,acyclovir,osteonecrosis,PS,,F,CID100002022
+172156164,acyclovir,antiphospholipid syndrome,PS,,F,CID100002022
+172156164,acyclovir,antiphospholipid syndrome,PS,,F,CID100002022
+172156164,acyclovir,antiphospholipid syndrome,PS,,F,CID100002022
+172156164,acyclovir,anxiety disorder,PS,,F,CID100002022
+172156164,acyclovir,anxiety disorder,PS,,F,CID100002022
+172156164,acyclovir,anxiety disorder,PS,,F,CID100002022
+172156164,acyclovir,coombs positive haemolytic anaemia,PS,,F,CID100002022
+172156164,acyclovir,coombs positive haemolytic anaemia,PS,,F,CID100002022
+172156164,acyclovir,coombs positive haemolytic anaemia,PS,,F,CID100002022
+1322599023,quetiapine,presyncope,PS,55.0,M,CID100005002
+1322599023,quetiapine,oedema peripheral,PS,55.0,M,CID100005002
+168974922,lamivudine,treatment noncompliance,PS,43.0,F,CID100003877
+168974922,lamivudine,blood hiv rna increased,PS,43.0,F,CID100003877
+220473443,irinotecan,drug ineffective,PS,61.0,M,CID100003750
+163408899,aripiprazole,dystonia,PS,23.0,F,CID100060795
+163408899,aripiprazole,insurance issue,PS,23.0,F,CID100060795
+163408899,aripiprazole,condition aggravated,PS,23.0,F,CID100060795
+163408899,aripiprazole,anosognosia,PS,23.0,F,CID100060795
+214857055,ciprofloxacin,autonomic neuropathy,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,autonomic neuropathy,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,autonomic neuropathy,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,autonomic neuropathy,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,sleep disorder,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,sleep disorder,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,sleep disorder,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,sleep disorder,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,abdominal discomfort,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,abdominal discomfort,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,abdominal discomfort,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,abdominal discomfort,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,hypersensitivity,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,hypersensitivity,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,hypersensitivity,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,hypersensitivity,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,neuropsychological symptoms,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,neuropsychological symptoms,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,neuropsychological symptoms,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,neuropsychological symptoms,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,nervous system disorder,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,nervous system disorder,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,nervous system disorder,PS,41.0,M,CID100002764
+214857055,ciprofloxacin,nervous system disorder,PS,41.0,M,CID100002764
+179633669,tobramycin,addison's disease,PS,50.0,M,CID100005496
+179633669,tobramycin,addison's disease,PS,50.0,M,CID100005496
+179633669,tobramycin,sleep disorder due to a general medical condition,PS,50.0,M,CID100005496
+179633669,tobramycin,sleep disorder due to a general medical condition,PS,50.0,M,CID100005496
+202239996,metformin,erythema,PS,49.0,F,CID100004091
+202239996,metformin,aortic disorder,PS,49.0,F,CID100004091
+202239996,metformin,pelvic pain,PS,49.0,F,CID100004091
+202239996,metformin,interleukin level increased,PS,49.0,F,CID100004091
+202239996,metformin,diarrhoea,PS,49.0,F,CID100004091
+190362989,losartan,thyroid disorder,PS,54.0,F,CID100003961
+190362989,losartan,eye haemorrhage,PS,54.0,F,CID100003961
+190362989,losartan,diarrhoea,PS,54.0,F,CID100003961
+190362989,losartan,chest pain,PS,54.0,F,CID100003961
+190362989,losartan,cardiac failure congestive,PS,54.0,F,CID100003961
+190362989,losartan,arthritis,PS,54.0,F,CID100003961
+162418974,voriconazole,drug ineffective,PS,39.0,M,CID100071616
+176770163,doxazosin,drug interaction,PS,71.0,M,CID100003157
+176770163,doxazosin,fall,PS,71.0,M,CID100003157
+187479972,metformin,decompensated hypothyroidism,PS,62.0,F,CID100004091
+187479972,metformin,urosepsis,PS,62.0,F,CID100004091
+187479972,metformin,aerococcus urinae infection,PS,62.0,F,CID100004091
+207342604,methotrexate,hodgkin's disease,PS,75.0,F,CID100004112
+207342604,methotrexate,hodgkin's disease,PS,75.0,F,CID100004112
+207342604,methotrexate,lymphoproliferative disorder,PS,75.0,F,CID100004112
+207342604,methotrexate,lymphoproliferative disorder,PS,75.0,F,CID100004112
+217441482,ibuprofen,cough,PS,20.0,M,CID100003672
+217441482,ibuprofen,cough,PS,20.0,M,CID100003672
+217441482,ibuprofen,cough,PS,20.0,M,CID100003672
+217441482,ibuprofen,cough,PS,20.0,M,CID100003672
+217441482,ibuprofen,cough,PS,20.0,M,CID100003672
+217441482,ibuprofen,diarrhoea,PS,20.0,M,CID100003672
+217441482,ibuprofen,diarrhoea,PS,20.0,M,CID100003672
+217441482,ibuprofen,diarrhoea,PS,20.0,M,CID100003672
+217441482,ibuprofen,diarrhoea,PS,20.0,M,CID100003672
+217441482,ibuprofen,diarrhoea,PS,20.0,M,CID100003672
+217441482,ibuprofen,erythema,PS,20.0,M,CID100003672
+217441482,ibuprofen,erythema,PS,20.0,M,CID100003672
+217441482,ibuprofen,erythema,PS,20.0,M,CID100003672
+217441482,ibuprofen,erythema,PS,20.0,M,CID100003672
+217441482,ibuprofen,erythema,PS,20.0,M,CID100003672
+195067332,docetaxel,product use in unapproved indication,PS,33.0,F,CID100003143
+205620667,aripiprazole,male sexual dysfunction,PS,42.0,M,CID100060795
+172447942,amlodipine,asthenia,PS,63.0,F,CID100002162
+172447942,amlodipine,adrenal adenoma,PS,63.0,F,CID100002162
+208985762,metformin,panniculitis,PS,,,CID100004091
+195092324,leflunomide,crohn's disease,PS,57.0,M,CID100003899
+196986042,pregabalin,drug interaction,PS,84.0,F,CID100125889
+2090978710,letrozole,hypocalcaemia,PS,61.0,F,CID100003902
+2090978710,letrozole,hepatic enzyme increased,PS,61.0,F,CID100003902
+2090978710,letrozole,neutropenia,PS,61.0,F,CID100003902
+2090978710,letrozole,neutropenia,PS,61.0,F,CID100003902
+2090978710,letrozole,back pain,PS,61.0,F,CID100003902
+2090978710,letrozole,neutropenia,PS,61.0,F,CID100003902
+186918572,methylprednisolone,multiple organ dysfunction syndrome,PS,67.0,M,CID100004159
+186918572,methylprednisolone,multiple organ dysfunction syndrome,PS,67.0,M,CID100004159
+186918572,methylprednisolone,multiple organ dysfunction syndrome,PS,67.0,M,CID100004159
+154653224,budesonide,headache,PS,67.0,M,CID100002462
+154653224,budesonide,headache,PS,67.0,M,CID100002462
+154653224,budesonide,headache,PS,67.0,M,CID100002462
+154653224,budesonide,headache,PS,67.0,M,CID100002462
+154653224,budesonide,infusion related reaction,PS,67.0,M,CID100002462
+154653224,budesonide,infusion related reaction,PS,67.0,M,CID100002462
+154653224,budesonide,infusion related reaction,PS,67.0,M,CID100002462
+154653224,budesonide,infusion related reaction,PS,67.0,M,CID100002462
+154653224,budesonide,hypertension,PS,67.0,M,CID100002462
+154653224,budesonide,hypertension,PS,67.0,M,CID100002462
+154653224,budesonide,hypertension,PS,67.0,M,CID100002462
+154653224,budesonide,hypertension,PS,67.0,M,CID100002462
+209902215,cladribine,escherichia pyelonephritis,PS,49.0,F,CID100001546
+186304252,celecoxib,motor dysfunction,PS,55.0,F,CID100002662
+186304252,celecoxib,motor dysfunction,PS,55.0,F,CID100002662
+186304252,celecoxib,gastric ulcer perforation,PS,55.0,F,CID100002662
+186304252,celecoxib,gastric ulcer perforation,PS,55.0,F,CID100002662
+112191883,flecainide,intentional overdose,PS,28.0,F,CID100003355
+1479799612,aripiprazole,malaise,PS,32.0,F,CID100060795
+1479799612,aripiprazole,gastroenteritis,PS,32.0,F,CID100060795
+1953805216,diclofenac,chondropathy,PS,56.0,F,CID100003032
+1953805216,diclofenac,chondropathy,PS,56.0,F,CID100003032
+1953805216,diclofenac,chondropathy,PS,56.0,F,CID100003032
+1953805216,diclofenac,chondropathy,PS,56.0,F,CID100003032
+1953805216,diclofenac,dyspepsia,PS,56.0,F,CID100003032
+1953805216,diclofenac,dyspepsia,PS,56.0,F,CID100003032
+1953805216,diclofenac,dyspepsia,PS,56.0,F,CID100003032
+1953805216,diclofenac,dyspepsia,PS,56.0,F,CID100003032
+1953805216,diclofenac,cholelithiasis,PS,56.0,F,CID100003032
+1953805216,diclofenac,cholelithiasis,PS,56.0,F,CID100003032
+1953805216,diclofenac,cholelithiasis,PS,56.0,F,CID100003032
+1953805216,diclofenac,cholelithiasis,PS,56.0,F,CID100003032
+1953805216,diclofenac,angina pectoris,PS,56.0,F,CID100003032
+1953805216,diclofenac,angina pectoris,PS,56.0,F,CID100003032
+1953805216,diclofenac,angina pectoris,PS,56.0,F,CID100003032
+1953805216,diclofenac,angina pectoris,PS,56.0,F,CID100003032
+1953805216,diclofenac,sacral pain,PS,56.0,F,CID100003032
+1953805216,diclofenac,sacral pain,PS,56.0,F,CID100003032
+1953805216,diclofenac,sacral pain,PS,56.0,F,CID100003032
+1953805216,diclofenac,sacral pain,PS,56.0,F,CID100003032
+212194986,melphalan,hepatic failure,PS,63.0,M,CID100004053
+212194986,melphalan,ascites,PS,63.0,M,CID100004053
+157957962,citalopram,toxicity to various agents,PS,24.0,F,CID100002771
+157957962,citalopram,toxicity to various agents,PS,24.0,F,CID100002771
+156072142,clonazepam,toxicity to various agents,PS,56.0,F,CID100002802
+151012484,flecainide,chills,PS,70.0,F,CID100003355
+151012484,flecainide,dyspnoea,PS,70.0,F,CID100003355
+151012484,flecainide,pyrexia,PS,70.0,F,CID100003355
+161163153,valganciclovir,renal tubular disorder,PS,67.0,M,CID100064147
+100294532,letrozole,palmar-plantar erythrodysaesthesia syndrome,PS,53.0,F,CID100003902
+100294532,letrozole,asthenia,PS,53.0,F,CID100003902
+203280844,methotrexate,immune reconstitution inflammatory syndrome,PS,60.0,M,CID100004112
+203280844,methotrexate,immune reconstitution inflammatory syndrome,PS,60.0,M,CID100004112
+191890574,mitomycin,pemphigoid,PS,80.0,M,CID100005746
+178807372,warfarin,atrioventricular block complete,PS,82.0,M,CID105001396
+178807372,warfarin,subdural haematoma,PS,82.0,M,CID105001396
+186728323,etoposide,lymphocyte count decreased,PS,61.0,M,CID100003310
+186728323,etoposide,immune-mediated enterocolitis,PS,61.0,M,CID100003310
+1682701311,lansoprazole,atopy,PS,72.0,M,CID100003883
+1682701311,lansoprazole,haemorrhage,PS,72.0,M,CID100003883
+1682701311,lansoprazole,lacrimation increased,PS,72.0,M,CID100003883
+1682701311,lansoprazole,condition aggravated,PS,72.0,M,CID100003883
+1682701311,lansoprazole,nodule,PS,72.0,M,CID100003883
+1682701311,lansoprazole,productive cough,PS,72.0,M,CID100003883
+1682701311,lansoprazole,lymphopenia,PS,72.0,M,CID100003883
+158822882,clopidogrel,drug ineffective,PS,38.0,F,CID100002806
+180580428,sertraline,condition aggravated,PS,11.0,F,CID100005203
+180580428,sertraline,off label use,PS,11.0,F,CID100005203
+208992134,gemfibrozil,drug interaction,PS,82.0,F,CID100003463
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,kidney infection,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,hepatitis c,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,drug ineffective,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+208321758,dexamethasone,therapy non-responder,PS,56.0,M,CID100003003
+147401304,ibuprofen,contraindicated product administered,PS,45.0,F,CID100003672
+147401304,ibuprofen,contraindicated product administered,PS,45.0,F,CID100003672
+147401304,ibuprofen,contraindicated product administered,PS,45.0,F,CID100003672
+147401304,ibuprofen,contraindicated product administered,PS,45.0,F,CID100003672
+147401304,ibuprofen,contraindicated product administered,PS,45.0,F,CID100003672
+158525652,metoprolol,blood thyroid stimulating hormone increased,PS,60.0,,CID100004171
+158525652,metoprolol,dyspnoea exertional,PS,60.0,,CID100004171
+178423833,imatinib,oedema peripheral,PS,17.0,M,CID100005291
+178423833,imatinib,drug clearance decreased,PS,17.0,M,CID100005291
+147988502,ibuprofen,urticaria,PS,25.0,M,CID100003672
+147988502,ibuprofen,urticaria,PS,25.0,M,CID100003672
+147988502,ibuprofen,urticaria,PS,25.0,M,CID100003672
+147988502,ibuprofen,urticaria,PS,25.0,M,CID100003672
+147988502,ibuprofen,urticaria,PS,25.0,M,CID100003672
+147988502,ibuprofen,angioedema,PS,25.0,M,CID100003672
+147988502,ibuprofen,angioedema,PS,25.0,M,CID100003672
+147988502,ibuprofen,angioedema,PS,25.0,M,CID100003672
+147988502,ibuprofen,angioedema,PS,25.0,M,CID100003672
+147988502,ibuprofen,angioedema,PS,25.0,M,CID100003672
+184783692,imatinib,neutropenic sepsis,PS,,,CID100005291
+220789932,aripiprazole,urinary incontinence,PS,36.0,F,CID100060795
+220789932,aripiprazole,breast disorder,PS,36.0,F,CID100060795
+220789932,aripiprazole,product use in unapproved indication,PS,36.0,F,CID100060795
+181628603,tacrolimus,febrile neutropenia,PS,9.0,M,CID100005372
+181628603,tacrolimus,febrile neutropenia,PS,9.0,M,CID100005372
+134105393,risperidone,emotional disorder,PS,11.0,M,CID100005073
+167528802,olmesartan,nausea,PS,74.0,F,CID100130881
+167528802,olmesartan,abdominal pain upper,PS,74.0,F,CID100130881
+185302912,olanzapine,therapeutic response decreased,PS,23.0,M,CID100004585
+162894352,oxycodone,drug withdrawal syndrome,PS,35.0,F,CID100004635
+123910602,clonazepam,bradycardia,PS,48.0,M,CID100002802
+123910602,clonazepam,acute respiratory distress syndrome,PS,48.0,M,CID100002802
+123910602,clonazepam,hypotension,PS,48.0,M,CID100002802
+195095872,acyclovir,renal impairment,PS,47.0,M,CID100002022
+195095872,acyclovir,renal impairment,PS,47.0,M,CID100002022
+195095872,acyclovir,renal impairment,PS,47.0,M,CID100002022
+124326287,ibuprofen,brain oedema,PS,53.0,M,CID100003672
+124326287,ibuprofen,brain oedema,PS,53.0,M,CID100003672
+124326287,ibuprofen,brain oedema,PS,53.0,M,CID100003672
+124326287,ibuprofen,brain oedema,PS,53.0,M,CID100003672
+124326287,ibuprofen,brain oedema,PS,53.0,M,CID100003672
+161776484,azithromycin,spinal cord compression,PS,64.0,M,CID100002269
+161776484,azithromycin,spinal cord compression,PS,64.0,M,CID100002269
+161776484,azithromycin,ischaemia,PS,64.0,M,CID100002269
+161776484,azithromycin,ischaemia,PS,64.0,M,CID100002269
+183135987,metformin,abdominal discomfort,PS,78.0,F,CID100004091
+183135987,metformin,depressed mood,PS,78.0,F,CID100004091
+148474666,flecainide,somnolence,PS,17.0,F,CID100003355
+148474666,flecainide,anxiety,PS,17.0,F,CID100003355
+148474666,flecainide,cardiogenic shock,PS,17.0,F,CID100003355
+148474666,flecainide,miosis,PS,17.0,F,CID100003355
+148474666,flecainide,toxicity to various agents,PS,17.0,F,CID100003355
+148474666,flecainide,tachypnoea,PS,17.0,F,CID100003355
+2168799620,aripiprazole,stress,PS,38.0,F,CID100060795
+2168799620,aripiprazole,mole excision,PS,38.0,F,CID100060795
+2168799620,aripiprazole,weight increased,PS,38.0,F,CID100060795
+2168799620,aripiprazole,inappropriate schedule of product administration,PS,38.0,F,CID100060795
+2168799620,aripiprazole,injection site pain,PS,38.0,F,CID100060795
+2168799620,aripiprazole,post procedural infection,PS,38.0,F,CID100060795
+165364542,levetiracetam,abortion,PS,,F,CID100059708
+170173017,dasatinib,febrile neutropenia,PS,15.0,M,CID103062316
+200747503,oxaliplatin,off label use,PS,63.0,M,CID100004609
+185754122,leflunomide,rheumatoid factor positive,PS,,F,CID100003899
+187356692,flecainide,hyponatraemia,PS,63.0,F,CID100003355
+187356692,flecainide,hypotension,PS,63.0,F,CID100003355
+172230692,clopidogrel,anaemia,PS,72.0,F,CID100002806
+172230692,clopidogrel,hypercholesterolaemia,PS,72.0,F,CID100002806
+172230692,clopidogrel,megakaryocytes increased,PS,72.0,F,CID100002806
+172230692,clopidogrel,atrial fibrillation,PS,72.0,F,CID100002806

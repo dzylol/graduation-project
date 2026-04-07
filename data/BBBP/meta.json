@@ -1,8 +1,0 @@
-{
-  "name": "BBBP",
-  "task_type": "classification",
-  "description": "临床性质预测",
-  "num_train": 36,
-  "num_val": 8,
-  "num_test": 8
-}

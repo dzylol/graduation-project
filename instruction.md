@@ -47,13 +47,12 @@ podman build -t localhost/bimamba .
 
 ```bash
 # 项目目录路径
-REMOTE_PROJECT_DIR="~/graduation project"
+REMOTE_PROJECT_DIR="/home/qfh/graduation-project"
 
 podman run --rm -it \
   -v "${REMOTE_PROJECT_DIR}:/workspace" \
   --workdir /workspace \
   --device nvidia.com/gpu=all \
-  --security-opt label=disable \
   localhost/bimamba \
   bash
 ```
@@ -65,8 +64,7 @@ podman run --rm -it \
 | `-it` | 交互式终端 |
 | `-v` | 挂载主机目录到容器内 `/workspace` |
 | `--workdir` | 容器内工作目录 |
-| `--device nvidia.com/gpu=all` | GPU 直通（需要 NVIDIA Container Toolkit） |
-| `--security-opt label=disable` | 禁用 SELinux 隔离 |
+| `--device nvidia.com/gpu=all` | GPU 直通 (NVIDIA GeForce RTX 5060 Ti) |
 
 ### 4. 验证环境
 
@@ -97,6 +95,7 @@ python download_datasets.py
 | ClinTox | 分类 | 1,478 | ROC-AUC |
 | FreeSolv | 回归 | 642 | RMSE |
 | Lipophilicity | 回归 | 4,200 | RMSE |
+| SIDER | 分类 | 1,427 | ROC-AUC |
 
 ### 下载特定数据集
 
@@ -149,7 +148,8 @@ python train.py \
   --device cuda \
   --d_model 256 \
   --n_layers 4 \
-  --pooling mean
+  --pooling mean \
+  --no_db
 ```
 
 #### BBBP 分类任务
@@ -164,9 +164,7 @@ python train.py \
   --batch_size 32 \
   --learning_rate 1e-3 \
   --device cuda \
-  --d_model 256 \
-  --n_layers 4 \
-  --pooling mean
+  --no_db
 ```
 
 ### 完整参数列表
@@ -210,7 +208,8 @@ python train.py \
   --batch_size 8 \
   --d_model 128 \
   --n_layers 2 \
-  --device cuda
+  --device cuda \
+  --no_db
 ```
 
 ### 训练输出
@@ -289,7 +288,8 @@ python train.py \
   --epochs 100 \
   --batch_size 32 \
   --learning_rate 1e-3 \
-  --device cuda
+  --device cuda \
+  --no_db
 
 # === 步骤 3: 评估模型 ===
 python eval.py \
@@ -316,7 +316,8 @@ python train.py \
   --epochs 100 \
   --batch_size 32 \
   --learning_rate 1e-3 \
-  --device cuda
+  --device cuda \
+  --no_db
 
 # === 步骤 3: 评估模型 ===
 python eval.py \
@@ -364,10 +365,9 @@ python tests/test_model.py
 ```bash
 # 进入容器
 podman run --rm -it \
-  -v "~/graduation project:/workspace" \
+  -v "/home/qfh/graduation-project:/workspace" \
   --workdir /workspace \
   --device nvidia.com/gpu=all \
-  --security-opt label=disable \
   localhost/bimamba \
   bash
 
@@ -378,7 +378,8 @@ python train.py \
   --model_type mamba_ssm \
   --epochs 100 \
   --batch_size 32 \
-  --device cuda
+  --device cuda \
+  --no_db
 ```
 
 ---

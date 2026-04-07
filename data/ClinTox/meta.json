@@ -1,8 +1,0 @@
-{
-  "name": "ClinTox",
-  "task_type": "classification",
-  "description": "临床性质预测",
-  "num_train": 35,
-  "num_val": 7,
-  "num_test": 8
-}

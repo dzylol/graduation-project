@@ -31,6 +31,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torch.amp import GradScaler
 import logging
 import os
 import json
@@ -192,6 +193,9 @@ def parse_args():
     )
     parser.add_argument("--max_length", type=int, default=512, help="最大序列长度")
     parser.add_argument(
+        "--num_workers", type=int, default=8, help="DataLoader worker 进程数"
+    )
+    parser.add_argument(
         "--db_path",
         type=str,
         default="interactive",
@@ -270,6 +274,7 @@ def train_epoch(
     device: torch.device,
     epoch: int,
     args: argparse.Namespace,
+    scaler: Optional[GradScaler] = None,
 ) -> float:
     """
     训练一个 epoch（一个完整的数据遍历）
@@ -287,82 +292,63 @@ def train_epoch(
         device: 计算设备
         epoch: 当前轮数
         args: 命令行参数
+        scaler: AMP GradScaler for mixed precision training
 
     Returns:
         平均损失值
     """
-    model.train()  # 设置为训练模式
-    total_loss = 0.0  # 累计损失
-    num_batches = 0  # 批次计数
+    model.train()
+    total_loss = 0.0
+    num_batches = 0
 
     for batch_idx, (input_ids, labels) in enumerate(train_loader):
-        # -------------------------------------------------------------------------
-        # 1. 数据移到设备
-        # -------------------------------------------------------------------------
         input_ids = input_ids.to(device)
         labels = labels.to(device)
 
-        # -------------------------------------------------------------------------
-        # 2. 前向传播
-        # -------------------------------------------------------------------------
-        # model() 会调用 forward() 方法
-        logits, loss = model(input_ids=input_ids, labels=labels)
+        optimizer.zero_grad()
 
-        # 保存原始损失值用于日志
-        loss_value = loss.item()
+        if scaler is not None:
+            with torch.amp.autocast(device_type="cuda"):
+                logits, loss = model(input_ids=input_ids, labels=labels)
+            loss_value = loss.item()
+            scaled_loss = loss / args.gradient_accumulation_steps
+            scaler.scale(scaled_loss).backward()
+        else:
+            logits, loss = model(input_ids=input_ids, labels=labels)
+            loss_value = loss.item()
+            scaled_loss = loss / args.gradient_accumulation_steps
+            scaled_loss.backward()
 
-        # -------------------------------------------------------------------------
-        # 3. 反向传播
-        # -------------------------------------------------------------------------
-        # 梯度累积：将损失除以累积步数
-        scaled_loss = loss / args.gradient_accumulation_steps
-        scaled_loss.backward()  # 反向传播，计算梯度
-
-        # 检查梯度是否有 NaN
         has_nan_grad = False
         for p in model.parameters():
             if p.grad is not None and torch.isnan(p.grad).any():
                 has_nan_grad = True
                 break
 
-        # 如果梯度有 NaN，跳过这个批次
         if has_nan_grad:
             optimizer.zero_grad()
             logger.warning(f"Batch {batch_idx}: 梯度包含 NaN，跳过此批次")
             continue
 
-        # -------------------------------------------------------------------------
-        # 4. 梯度累积和参数更新
-        # -------------------------------------------------------------------------
         if (batch_idx + 1) % args.gradient_accumulation_steps == 0:
-            # 梯度裁剪：防止梯度爆炸
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
 
-            # 参数更新
-            optimizer.step()
+            if scaler is not None:
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                optimizer.step()
 
-            # 学习率调度
             scheduler.step()
+            num_batches += 1
+            total_loss += loss_value
 
-            # 清零梯度（重要！否则梯度会累积）
-            optimizer.zero_grad()
-
-        # 累计损失（使用原始损失值）
-        total_loss += loss_value
-        num_batches += 1
-
-        # -------------------------------------------------------------------------
-        # 5. 日志输出
-        # -------------------------------------------------------------------------
-        if batch_idx % args.log_interval == 0:
+        if batch_idx % 10 == 0:
             logger.info(
-                f"Epoch: {epoch + 1}/{args.epochs} | "
-                f"Batch: {batch_idx}/{len(train_loader)} | "
-                f"Loss: {loss_value:.6f}"
+                f"Epoch: {epoch + 1}/{args.epochs} | Batch: {batch_idx}/{len(train_loader)} | Loss: {loss_value:.6f}"
             )
 
-    # 返回平均损失
-    return total_loss / num_batches
+    return total_loss / max(num_batches, 1)
 
 
 def evaluate(
@@ -515,8 +501,7 @@ def main():
         batch_size=args.batch_size,
         task_type=args.task_type,
         max_length=args.max_length,
-<<<<<<< HEAD
-        num_workers=4,
+        num_workers=args.num_workers,
         normalize=(args.task_type == "regression"),
     )
     if normalizer:
@@ -525,8 +510,11 @@ def main():
         )
 
     # 从数据集获取词汇表信息
-    vocab_size = train_loader.dataset.get_vocab_size()
-    pad_token_id = train_loader.dataset.get_pad_token_id()
+    dataset_for_vocab = (
+        train_loader.dataset.base_dataset if normalizer else train_loader.dataset
+    )
+    vocab_size = dataset_for_vocab.get_vocab_size()
+    pad_token_id = dataset_for_vocab.get_pad_token_id()
     logger.info(f"词汇表大小: {vocab_size}")
 
     # -------------------------------------------------------------------------
@@ -596,6 +584,10 @@ def main():
         )
     model = model.to(device)
 
+    scaler = GradScaler("cuda") if device.type == "cuda" else None
+    if scaler:
+        logger.info("启用混合精度训练 (AMP)")
+
     # -------------------------------------------------------------------------
     # 8. 打印模型信息
     # -------------------------------------------------------------------------
@@ -649,7 +641,7 @@ def main():
 
         # 训练一个 epoch
         train_loss = train_epoch(
-            model, train_loader, optimizer, scheduler, device, epoch, args
+            model, train_loader, optimizer, scheduler, device, epoch, args, scaler
         )
 
         # 在验证集上评估
@@ -756,12 +748,12 @@ def main():
 # ============================================================================
 
 if __name__ == "__main__":
-    _interrupted = False
+    _cleanup_done = [False]
 
     def _cleanup():
-        if _interrupted:
+        if _cleanup_done[0]:
             return
-        _interrupted = True
+        _cleanup_done[0] = True
         logger.info("清理 DataLoader worker 进程...")
 
     def _signal_handler(signum, frame):
