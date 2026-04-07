@@ -212,6 +212,40 @@ python train.py \
   --no_db
 ```
 
+### GPU 优化配置（RTX 5060 Ti 16GB 最佳实践）
+
+**推荐配置**：充分利用 16GB 显存，提高 GPU 利用率
+
+```bash
+python train.py \
+  --dataset Lipophilicity \
+  --data_dir ./data/Lipophilicity \
+  --model_type mamba_ssm \
+  --batch_size 256 \
+  --num_workers 16 \
+  --learning_rate 1e-3 \
+  --device cuda \
+  --no_db
+```
+
+**参数说明**：
+
+| 参数 | 推荐值 | 说明 |
+|------|--------|------|
+| `--batch_size` | 256-512 | 16GB 显存推荐 256，大数据集可用 512 |
+| `--num_workers` | 8-16 | DataLoader 并行加载，充分利用 CPU |
+| 混合精度 (AMP) | 自动启用 | CUDA 自动混合精度，减少显存占用 |
+
+**显存占用参考**（BiMamba d_model=256, n_layers=4）：
+
+| batch_size | 显存占用 | GPU 利用率 |
+|------------|----------|-----------|
+| 128 | ~4GB | 脉冲式 100% |
+| 256 | ~7GB | 脉冲式 100% |
+| 512 | ~12GB | 脉冲式 100% |
+
+**注意**：小数据集（如 Lipophilicity 3360 样本）GPU 利用率呈脉冲式是正常现象，因为模型计算太快（O(N) 复杂度），数据加载跟不上。大数据集（ZINC250K 25万分子）GPU 会持续满载。
+
 ### 训练输出
 
 训练完成后：
