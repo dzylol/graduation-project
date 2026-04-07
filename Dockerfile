@@ -1,59 +1,59 @@
 # syntax=docker/dockerfile:1
-#
-# Build command:
-# env -u http_proxy -u https_proxy buildah bud --network=host --layers -t mamba-train .
-#
-FROM docker.io/nvidia/cuda:13.1.1-cudnn-devel-ubuntu24.04
+FROM nvcr.io/nvidia/cuda:12.8.0-cudnn-devel-ubuntu24.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TORCH_CUDA_ARCH_LIST="12.0;12.0+ptx" \
+    CUDA_HOME="/usr/local/cuda" \
+    PATH="/usr/local/cuda/bin:${PATH}" \
+    LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}" \
+    FORCE_CUDA=1 \
+    MAX_JOBS=12
 
 WORKDIR /workspace
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-# [优化 1]：安装系统依赖 + Python3
+# 1. 系统依赖
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y \
-    git \
-    ninja-build \
-    gcc \
-    g++ \
-    python3 \
-    python3-pip \
-    python3-dev \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
+        ninja-build gcc g++ python3-pip python3-dev \
+        libxrender1 libxext6 libfontconfig1 \
     && ln -sf /usr/bin/python3 /usr/bin/python
 
-# [优化 2]：配置 PIP 镜像 + 安装基础工具（使用持久化缓存卷）
-RUN --mount=type=cache,id=pip-tools-cache,target=/root/.cache/pip \
+# 2. 安装 PyTorch
+RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip \
+    rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED && \
     pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
-    pip install --break-system-packages ninja setuptools wheel packaging
+    pip install setuptools wheel packaging ninja pyyaml && \
+    pip install --pre --index-url https://download.pytorch.org/whl/nightly/cu128 \
+                --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple \
+                torch torchvision torchaudio
 
-# [优化 3]：安装 PyTorch（通过清华镜像获取 nvidia 包，PyPI 下载 torch）
-RUN --mount=type=cache,target=/var/tmp/pip \
-    pip install --break-system-packages \
-        --index-url https://download.pytorch.org/whl/cu130 \
-        --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple \
-        torch torchvision torchaudio
+# 3. 安装 causal-conv1d
+COPY causal-conv1d-v1.4.0.tar.gz /tmp/
+RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip \
+    cd /tmp && \
+    tar -xzf causal-conv1d-v1.4.0.tar.gz && \
+    cd causal-conv1d-1.4.0 && \
+    CAUSAL_CONV1D_FORCE_BUILD=TRUE \
+    pip install --no-build-isolation --no-deps . && \
+    cd / && rm -rf /tmp/causal-conv1d*
 
-# [优化 4]：编译 causal-conv1d (全核心编译)
-RUN --mount=type=cache,target=/var/tmp/pip-install \
-    pip install --break-system-packages packaging && \
-    git clone -b v1.4.0 --depth 1 https://github.com/Dao-AILab/causal-conv1d.git /tmp/causal-conv1d && \
-    cd /tmp/causal-conv1d && \
-    CAUSAL_CONV1D_FORCE_BUILD=TRUE MAX_JOBS=$(nproc) pip install --break-system-packages . --no-build-isolation --no-cache-dir && \
-    rm -rf /tmp/causal-conv1d
+# 4. 安装 mamba-ssm
+COPY mamba-v2.2.2.tar.gz /tmp/
+RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip \
+    cd /tmp && \
+    tar -xzf mamba-v2.2.2.tar.gz && \
+    cd mamba-2.2.2 && \
+    MAMBA_FORCE_BUILD=TRUE \
+    pip install --no-build-isolation --no-deps . && \
+    cd / && rm -rf /tmp/mamba*
+# 5. 安装分子预测常用库
+RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip \
+    pip install transformers==4.38.2 datasets accelerate tensorboard \
+                scikit-learn rdkit pandas matplotlib tqdm einops
+# 6. 验证
+RUN python3 -c "import torch; import mamba_ssm; import causal_conv1d; \
+    from rdkit import Chem; \
+    print(f'CUDA: {torch.version.cuda}'); print('SUCCESS!')"
 
-# [优化 5]：编译 mamba (全核心编译)
-RUN --mount=type=cache,target=/var/tmp/pip-install \
-    git clone -b v2.2.2 --depth 1 https://github.com/state-spaces/mamba.git /tmp/mamba && \
-    cd /tmp/mamba && \
-    MAMBA_FORCE_BUILD=TRUE MAX_JOBS=$(nproc) pip install --break-system-packages . --no-build-isolation --no-cache-dir && \
-    rm -rf /tmp/mamba
-
-# [优化 6]：安装常用训练库
-RUN --mount=type=cache,target=/var/tmp/pip \
-    pip install --break-system-packages transformers datasets accelerate tensorboard
-
-# 终极验证
-RUN python3 -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.version.cuda}'); import causal_conv1d; import mamba_ssm; print('Mamba OK')"
+CMD ["/bin/bash"]
