@@ -755,9 +755,31 @@ def random_split_dataset(
     if n_jobs is None:
         n_jobs = os.cpu_count() or 4
 
-    # pandas read_csv is already multi-threaded by default
-    # n_jobs parameter kept for API compatibility but actual threading is handled internally
-    df = pd.read_csv(input_csv)
+    from concurrent.futures import ThreadPoolExecutor
+
+    def read_chunk(args):
+        start, end = args
+        return pd.read_csv(
+            input_csv,
+            skiprows=range(1, start + 1) if start > 0 else None,
+            nrows=end - start,
+        )
+
+    total_lines = sum(1 for _ in open(input_csv)) - 1
+    chunk_size = max(1, total_lines // n_jobs)
+    chunks = []
+    for i in range(n_jobs):
+        start = i * chunk_size
+        end = min((i + 1) * chunk_size, total_lines) if i < n_jobs - 1 else total_lines
+        if start < total_lines:
+            chunks.append((start, end))
+
+    if len(chunks) > 1:
+        with ThreadPoolExecutor(max_workers=n_jobs) as executor:
+            results = list(executor.map(read_chunk, chunks))
+        df = pd.concat(results, ignore_index=True)
+    else:
+        df = pd.read_csv(input_csv)
 
     val_test_ratio = val_ratio + test_ratio
     train_df, val_test_df = train_test_split(
