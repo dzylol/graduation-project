@@ -1,436 +1,397 @@
-# Bi-Mamba-Chem 训练与评估指南
+# Bi-Mamba-Chem 训练与评估完整指南
 
-本文档说明如何使用 `podman image localhost/bimambaa` 环境进行模型训练与评估。**使用 `bimamba_with_mamba_ssm.py` 实现（非人工实现的 `bimamba.py`）**。
+本文档说明如何从零开始训练和评估分子性质预测模型。任何 AI 只需按照以下步骤执行即可完成训练。
 
 ---
 
 ## 目录
 
-- [环境准备](#环境准备)
-- [下载数据集](#下载数据集)
-- [模型训练](#模型训练)
-- [模型评估](#模型评估)
-- [常用命令参考](#常用命令参考)
+- [第一步：连接远程服务器](#第一步连接远程服务器)
+- [第二步：同步代码](#第二步同步代码)
+- [第三步：数据分割（重要！）](#第三步数据分割重要)
+- [第四步：开始训练](#第四步开始训练)
+- [第五步：评估模型](#第五步评估模型)
+- [完整示例命令](#完整示例命令)
 
 ---
 
-## 环境准备
+## 第一步：连接远程服务器
 
-### 1. 连接远程机器
-
-使用 cpolar-tunnel SSH 隧道连接远程机器：
+### SSH 连接
 
 ```bash
-ssh cpolar-tunnel
+ssh qfh@6.tcp.cpolar.cn -p 13234
 ```
 
-### 2. 检查 Podman 镜像
-
-在远程机器上执行：
+进入后切换到项目目录：
 
 ```bash
-podman images | grep bimamb
-```
-
-确认 `localhost/bimamba` 镜像存在。如果没有，请先构建：
-
-```bash
-# 在项目根目录执行（需要 Dockerfile）
-podman build -t localhost/bimamba .
-```
-
-### 3. 挂载项目目录
-
-训练产生的模型权重、日志等文件需要持久化到主机目录。运行容器时使用 `-v` 挂载：
-
-**远程机器上执行**：
-
-```bash
-# 项目目录路径
-REMOTE_PROJECT_DIR="/home/qfh/graduation-project"
-
-podman run --rm -it \
-  -v "${REMOTE_PROJECT_DIR}:/workspace" \
-  --workdir /workspace \
-  --device nvidia.com/gpu=all \
-  localhost/bimamba \
-  bash
-```
-
-**参数说明**：
-| 参数 | 说明 |
-|------|------|
-| `--rm` | 容器退出后自动删除 |
-| `-it` | 交互式终端 |
-| `-v` | 挂载主机目录到容器内 `/workspace` |
-| `--workdir` | 容器内工作目录 |
-| `--device nvidia.com/gpu=all` | GPU 直通 (NVIDIA GeForce RTX 5060 Ti) |
-
-### 4. 验证环境
-
-容器内执行：
-
-```bash
-python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA: {torch.version.cuda}')"
-python -c "import mamba_ssm; print('mamba_ssm OK')"
-python -c "from src.models.bimamba_with_mamba_ssm import BiMambaForPropertyPrediction; print('BiMambaWithMambaSSM OK')"
+cd ~/graduation-project
 ```
 
 ---
 
-## 下载数据集
+## 第二步：同步代码
 
-### 使用 DeepChem 下载完整数据集（推荐）
-
-```bash
-python download_datasets.py
-```
-
-这会下载以下 MoleculeNet 数据集：
-
-| 数据集 | 任务类型 | 分子数 | 评价指标 |
-|--------|----------|--------|----------|
-| ESOL | 回归 | 1,128 | RMSE |
-| BBBP | 分类 | 2,039 | ROC-AUC |
-| ClinTox | 分类 | 1,478 | ROC-AUC |
-| FreeSolv | 回归 | 642 | RMSE |
-| Lipophilicity | 回归 | 4,200 | RMSE |
-| SIDER | 分类 | 1,427 | ROC-AUC |
-
-### 下载特定数据集
+每次开始新实验前，先拉取最新代码：
 
 ```bash
-python download_datasets.py --dataset ESOL
+git pull origin main
 ```
 
-### 强制使用示例数据（无需 DeepChem）
+### 验证环境
 
 ```bash
-python download_datasets.py --example
+podman run --rm -v "$(pwd):/workspace" --workdir /workspace localhost/bimamba bash -c "python -c 'import torch; print(f\"PyTorch: {torch.__version__}\"); print(f\"CUDA: {torch.version.cuda}\")'"
 ```
 
-数据集下载后保存在 `./data/` 目录，结构如下：
-
+预期输出：
 ```
-data/
-├── ESOL/
-│   ├── train.csv
-│   ├── val.csv
-│   ├── test.csv
-│   └── meta.json
-├── BBBP/
-│   ├── train.csv
-│   ├── val.csv
-│   ├── test.csv
-│   └── meta.json
-└── ...
+PyTorch: 2.x.x
+CUDA: 12.x
 ```
 
 ---
 
-## 模型训练
+## 第三步：数据分割（重要！）
+
+### 重要说明
+
+**数据集只有一个 CSV 文件（如 `delaney.csv`），需要先分割成 train/val/test 三部分。**
+
+每次实验使用不同的 random seed，可以获得不同的数据分割，增强实验多样性。
+
+### 自动分割（推荐）
+
+使用以下脚本自动完成数据分割和训练：
+
+```bash
+podman run --rm -v "$(pwd):/workspace" --workdir /workspace localhost/bimamba bash -c "
+python -c \"
+from src.data.molecule_dataset import random_split_dataset, get_next_split_seed
+import os
+
+# 自动获取 seed（每次实验自动递增）
+seed = get_next_split_seed()
+print(f'使用 seed: {seed}')
+
+# 分割数据（ESOL 示例）
+train, val, test = random_split_dataset(
+    'dataset/ESOL/delaney.csv',
+    output_dir='dataset/ESOL/',
+    seed=seed
+)
+print(f'Train: {len(train)}, Val: {len(val)}, Test: {len(test)}')
+\"
+"
+```
+
+### 分割参数说明
+
+```python
+random_split_dataset(
+    input_csv="dataset/ESOL/delaney.csv",  # 原始数据文件
+    output_dir="dataset/ESOL/",            # 输出目录
+    train_ratio=0.8,                       # 训练集比例
+    val_ratio=0.1,                        # 验证集比例
+    test_ratio=0.1,                       # 测试集比例
+    seed=42,                              # 随机种子（相同 seed 产生相同分割）
+    n_jobs=None                           # None=使用全部 CPU 核心加速
+)
+```
+
+### 手动分割示例
+
+如果需要更细粒度控制：
+
+```bash
+podman run --rm -v "$(pwd):/workspace" --workdir /workspace localhost/bimamba bash -c "
+python -c \"
+from src.data.molecule_dataset import random_split_dataset, get_next_split_seed
+
+# 获取并递增 seed
+seed = get_next_split_seed()
+print(f'当前 seed: {seed}')
+
+# 分割 ZINC250K 数据集
+train, val, test = random_split_dataset(
+    'dataset/ZINC250K/250k_rndm_zinc_drugs_clean_3.csv',
+    output_dir='dataset/ZINC250K/',
+    seed=seed,
+    n_jobs=None  # 使用全部 CPU 核心
+)
+print(f'ZINC250K: Train={len(train)}, Val={len(val)}, Test={len(test)}')
+\"
+"
+```
+
+### 验证分割结果
+
+```bash
+ls -la dataset/ESOL/*.csv
+```
+
+预期：
+```
+train.csv  val.csv  test.csv
+```
+
+---
+
+## 第四步：开始训练
 
 ### 基础训练命令
 
-**关键参数 `--model_type mamba_ssm`**：使用 `bimamba_with_mamba_ssm.py` 实现（基于 mamba_ssm 库）。
-
-#### ESOL 回归任务
-
 ```bash
-python train.py \
-  --dataset ESOL \
-  --data_dir ./data/ESOL \
-  --model_type mamba_ssm \
-  --task_type regression \
-  --epochs 100 \
-  --batch_size 32 \
-  --learning_rate 1e-3 \
-  --device cuda \
-  --d_model 256 \
-  --n_layers 4 \
-  --pooling mean \
-  --no_db
+podman run --rm -v "$(pwd):/workspace" --workdir /workspace \
+  --device nvidia.com/gpu=all localhost/bimamba \
+  bash -c "python train.py \
+    --dataset ESOL \
+    --data_dir ./dataset/ESOL \
+    --train_file train.csv \
+    --val_file val.csv \
+    --test_file test.csv \
+    --model_type mamba_ssm \
+    --task_type regression \
+    --epochs 100 \
+    --batch_size 32 \
+    --learning_rate 1e-3 \
+    --device cuda \
+    --no_db"
 ```
 
-#### BBBP 分类任务
-
-```bash
-python train.py \
-  --dataset BBBP \
-  --data_dir ./data/BBBP \
-  --model_type mamba_ssm \
-  --task_type classification \
-  --epochs 100 \
-  --batch_size 32 \
-  --learning_rate 1e-3 \
-  --device cuda \
-  --no_db
-```
-
-### 完整参数列表
+### 参数说明
 
 | 参数 | 必需 | 默认值 | 说明 |
 |------|------|--------|------|
-| `--dataset` | ✅ | - | 数据集名称（如 ESOL, BBBP） |
-| `--data_dir` | | `./data` | 数据文件目录 |
-| `--model_type` | | `manual` | **必须设置为 `mamba_ssm`** |
+| `--dataset` | ✅ | - | 数据集名称（用于日志） |
+| `--data_dir` | ✅ | - | 数据目录 |
+| `--train_file` | ✅ | - | 训练数据文件名 |
+| `--val_file` | ✅ | - | 验证数据文件名 |
+| `--test_file` | ✅ | - | 测试数据文件名 |
+| `--model_type` | ✅ | - | **必须设为 `mamba_ssm`** |
 | `--task_type` | | `regression` | `regression` 或 `classification` |
-| `--train_file` | | `train.csv` | 训练数据文件名 |
-| `--val_file` | | `val.csv` | 验证数据文件名 |
-| `--test_file` | | `test.csv` | 测试数据文件名 |
-| `--d_model` | | `256` | 模型隐藏层维度 |
-| `--n_layers` | | `4` | BiMamba 层数 |
-| `--pooling` | | `mean` | 池化方式：`mean` / `max` / `cls` |
-| `--dropout` | | `0.1` | Dropout 概率 |
 | `--epochs` | | `10` | 训练轮数 |
 | `--batch_size` | | `32` | 批大小 |
 | `--learning_rate` | | `1e-4` | 学习率 |
-| `--weight_decay` | | `1e-5` | 权重衰减 |
-| `--max_grad_norm` | | `1.0` | 梯度裁剪范数 |
-| `--gradient_accumulation_steps` | | `1` | 梯度累积步数 |
-| `--warmup_epochs` | | `5` | 学习率预热轮数 |
-| `--device` | | `auto` | `cuda` / `mps` / `cpu` / `auto` |
-| `--max_length` | | `512` | 最大序列长度 |
-| `--seed` | | `42` | 随机种子 |
-| `--output_dir` | | `./checkpoints` | 模型保存目录 |
-| `--db_path` | | `interactive` | SQLite 数据库路径 |
-| `--no_db` | | `False` | 禁用数据库记录 |
+| `--device` | | `cuda` | 设备：`cuda` / `mps` / `cpu` |
+| `--no_db` | | - | 禁用数据库记录（推荐） |
 
-### 显存不足时的配置
+### 不同数据集配置
 
-如果遇到 OOM（显存不足），尝试减小批次大小或模型维度：
+#### ESOL（回归任务）
 
 ```bash
-python train.py \
-  --dataset ESOL \
-  --data_dir ./data/ESOL \
-  --model_type mamba_ssm \
-  --batch_size 8 \
-  --d_model 128 \
-  --n_layers 2 \
-  --device cuda \
-  --no_db
+podman run --rm -v "$(pwd):/workspace" --workdir /workspace \
+  --device nvidia.com/gpu=all localhost/bimamba \
+  bash -c "python train.py \
+    --dataset ESOL \
+    --data_dir ./dataset/ESOL \
+    --train_file train.csv \
+    --val_file val.csv \
+    --test_file test.csv \
+    --model_type mamba_ssm \
+    --task_type regression \
+    --epochs 100 \
+    --batch_size 32 \
+    --learning_rate 1e-3 \
+    --device cuda \
+    --no_db"
 ```
 
-### GPU 优化配置（RTX 5060 Ti 16GB 最佳实践）
-
-**推荐配置**：充分利用 16GB 显存，提高 GPU 利用率
+#### BBBP（分类任务）
 
 ```bash
-python train.py \
-  --dataset Lipophilicity \
-  --data_dir ./data/Lipophilicity \
-  --model_type mamba_ssm \
-  --batch_size 256 \
-  --num_workers 16 \
-  --learning_rate 1e-3 \
-  --device cuda \
-  --no_db
+podman run --rm -v "$(pwd):/workspace" --workdir /workspace \
+  --device nvidia.com/gpu=all localhost/bimamba \
+  bash -c "python train.py \
+    --dataset BBBP \
+    --data_dir ./dataset/BBBP \
+    --train_file train.csv \
+    --val_file val.csv \
+    --test_file test.csv \
+    --model_type mamba_ssm \
+    --task_type classification \
+    --epochs 100 \
+    --batch_size 32 \
+    --learning_rate 1e-3 \
+    --device cuda \
+    --no_db"
 ```
 
-**参数说明**：
-
-| 参数 | 推荐值 | 说明 |
-|------|--------|------|
-| `--batch_size` | 256-512 | 16GB 显存推荐 256，大数据集可用 512 |
-| `--num_workers` | 8-16 | DataLoader 并行加载，充分利用 CPU |
-| 混合精度 (AMP) | 自动启用 | CUDA 自动混合精度，减少显存占用 |
-
-**显存占用参考**（BiMamba d_model=256, n_layers=4）：
-
-| batch_size | 显存占用 | GPU 利用率 |
-|------------|----------|-----------|
-| 128 | ~4GB | 脉冲式 100% |
-| 256 | ~7GB | 脉冲式 100% |
-| 512 | ~12GB | 脉冲式 100% |
-
-**注意**：小数据集（如 Lipophilicity 3360 样本）GPU 利用率呈脉冲式是正常现象，因为模型计算太快（O(N) 复杂度），数据加载跟不上。大数据集（ZINC250K 25万分子）GPU 会持续满载。
-
-### 训练输出
-
-训练完成后：
-
-1. **模型权重**保存在 `./checkpoints/` 目录：
-   ```
-   checkpoints/
-   └── ESOL_bi_mamba_best.pt   # 验证集最优模型
-   ```
-
-2. **训练参数**保存在 `checkpoints/args.json`
-
-3. **实验记录**保存在 SQLite 数据库（默认启用）
-
----
-
-## 模型评估
-
-### 评估已训练模型
-
-**关键参数 `--model_type`**：必须与训练时使用的模型一致。
+#### ZINC250K（大规模回归）
 
 ```bash
-# 评估 mamba_ssm 训练的模型
-python eval.py \
-  --checkpoint ./checkpoints/ESOL_bi_mamba_best.pt \
-  --dataset ESOL \
-  --data_dir ./data/ESOL \
-  --test_file test.csv \
-  --model_type mamba_ssm \
-  --device cuda
+podman run --rm -v "$(pwd):/workspace" --workdir /workspace \
+  --device nvidia.com/gpu=all localhost/bimamba \
+  bash -c "python train.py \
+    --dataset ZINC250K \
+    --data_dir ./dataset/ZINC250K \
+    --train_file train.csv \
+    --val_file val.csv \
+    --test_file test.csv \
+    --model_type mamba_ssm \
+    --task_type regression \
+    --epochs 50 \
+    --batch_size 256 \
+    --learning_rate 1e-3 \
+    --device cuda \
+    --no_db"
 ```
 
-### 评估参数
+### 显存不足？
 
-| 参数 | 必需 | 默认值 | 说明 |
-|------|------|--------|------|
-| `--checkpoint` | ✅ | - | 模型检查点路径 |
-| `--dataset` | ✅ | - | 数据集名称 |
-| `--model_type` | | `manual` | **必须设置为 `mamba_ssm`（如果用 mamba_ssm 训练）** |
-| `--data_dir` | | `./data` | 数据文件目录 |
-| `--test_file` | | `test.csv` | 测试数据文件名 |
-| `--task_type` | | `regression` | `regression` 或 `classification` |
-| `--d_model` | | `256` | 模型维度（需与训练时一致） |
-| `--n_layers` | | `4` | 层数（需与训练时一致） |
-| `--pooling` | | `mean` | 池化方式（需与训练时一致） |
-| `--batch_size` | | `32` | 批大小 |
-| `--device` | | `auto` | `cuda` / `mps` / `cpu` |
-| `--max_samples` | | `-1` | 最大评估样本数（-1 表示全部） |
-
-### 评估指标
-
-| 任务类型 | 主要指标 | 其他指标 |
-|----------|----------|----------|
-| 回归 | RMSE | MAE, MSE |
-| 分类 | ROC-AUC | Accuracy |
-
----
-
-## 常用命令参考
-
-### 1. 完整训练 + 评估流程（ESOL）
+减小 batch_size：
 
 ```bash
-# === 步骤 1: 下载数据 ===
-python download_datasets.py --dataset ESOL
-
-# === 步骤 2: 训练模型 ===
-python train.py \
-  --dataset ESOL \
-  --data_dir ./data/ESOL \
-  --model_type mamba_ssm \
-  --task_type regression \
-  --epochs 100 \
-  --batch_size 32 \
-  --learning_rate 1e-3 \
-  --device cuda \
-  --no_db
-
-# === 步骤 3: 评估模型 ===
-python eval.py \
-  --checkpoint ./checkpoints/ESOL_bi_mamba_best.pt \
-  --dataset ESOL \
-  --data_dir ./data/ESOL \
-  --model_type mamba_ssm \
-  --task_type regression \
-  --device cuda
-```
-
-### 2. 完整训练 + 评估流程（BBBP 分类）
-
-```bash
-# === 步骤 1: 下载数据 ===
-python download_datasets.py --dataset BBBP
-
-# === 步骤 2: 训练模型 ===
-python train.py \
-  --dataset BBBP \
-  --data_dir ./data/BBBP \
-  --model_type mamba_ssm \
-  --task_type classification \
-  --epochs 100 \
-  --batch_size 32 \
-  --learning_rate 1e-3 \
-  --device cuda \
-  --no_db
-
-# === 步骤 3: 评估模型 ===
-python eval.py \
-  --checkpoint ./checkpoints/BBBP_bi_mamba_best.pt \
-  --dataset BBBP \
-  --data_dir ./data/BBBP \
-  --model_type mamba_ssm \
-  --task_type classification \
-  --device cuda
-```
-
-### 3. 查看训练日志
-
-```bash
-# 实时查看训练日志
-tail -f training.log
-
-# 查看最后 50 行
-tail -50 training.log
-```
-
-### 4. 查看实验记录
-
-```bash
-python scripts/manage_experiments.py --list
-```
-
-### 5. 运行测试
-
-```bash
-# 运行所有测试
-python -m pytest tests/ -v
-
-# 运行单个测试文件
-python -m pytest tests/test_model.py -v
-
-# 直接运行测试脚本（无需 pytest）
-python tests/test_model.py
-```
-
-### 6. Podman 交互式训练（远程机器）
-
-**在远程机器上执行**：
-
-```bash
-# 进入容器
-podman run --rm -it \
-  -v "/home/qfh/graduation-project:/workspace" \
-  --workdir /workspace \
-  --device nvidia.com/gpu=all \
-  localhost/bimamba \
-  bash
-
-# 容器内执行训练
-python train.py \
-  --dataset ESOL \
-  --data_dir ./data/ESOL \
-  --model_type mamba_ssm \
-  --epochs 100 \
-  --batch_size 32 \
-  --device cuda \
-  --no_db
+--batch_size 8 \
+--d_model 128 \
+--n_layers 2 \
 ```
 
 ---
 
-## 注意事项
+## 第五步：评估模型
 
-1. **必须设置 `--model_type mamba_ssm`**：默认是 `manual`（使用 `bimamba.py`），要使用 mamba_ssm 库的实现必须显式指定。
+训练完成后会生成 `./checkpoints/ESOL_bi_mamba_best.pt`
 
-2. **评估时也要设置 `--model_type`**：训练和评估的 `--model_type` 必须一致。
+### 评估命令
 
-3. **设备选择**：
-   - NVIDIA GPU：使用 `--device cuda`
-   - Apple Silicon Mac：使用 `--device mps`
-   - CPU 调试：使用 `--device cpu`
+```bash
+podman run --rm -v "$(pwd):/workspace" --workdir /workspace \
+  --device nvidia.com/gpu=all localhost/bimamba \
+  bash -c "python eval.py \
+    --checkpoint ./checkpoints/ESOL_bi_mamba_best.pt \
+    --dataset ESOL \
+    --data_dir ./dataset/ESOL \
+    --test_file test.csv \
+    --model_type mamba_ssm \
+    --device cuda"
+```
 
-4. **数据库**：训练默认启用 SQLite 实验追踪。如需禁用，添加 `--no_db` 参数。
+---
 
-5. **随机种子**：默认 `--seed 42`，确保实验可复现。
+## 完整示例命令
 
-6. **模型参数一致性**：训练和评估时的 `d_model`、`n_layers`、`pooling` 等参数必须保持一致，否则加载权重会出错。
+### 一次性执行（推荐）
+
+复制以下命令，按顺序执行即可完成整个训练流程：
+
+```bash
+# 1. 连接远程服务器
+ssh qfh@6.tcp.cpolar.cn -p 13234
+
+# 2. 进入项目目录
+cd ~/graduation-project
+
+# 3. 同步最新代码
+git pull origin main
+
+# 4. 数据分割
+podman run --rm -v "$(pwd):/workspace" --workdir /workspace localhost/bimamba \
+  bash -c "python -c \"
+from src.data.molecule_dataset import random_split_dataset, get_next_split_seed
+seed = get_next_split_seed()
+print(f'Seed: {seed}')
+train, val, test = random_split_dataset(
+    'dataset/ESOL/delaney.csv',
+    output_dir='dataset/ESOL/',
+    seed=seed
+)
+print(f'Train: {len(train)}, Val: {len(val)}, Test: {len(test)}')
+\""
+
+# 5. 开始训练
+podman run --rm -v "$(pwd):/workspace" --workdir /workspace \
+  --device nvidia.com/gpu=all localhost/bimamba \
+  bash -c "python train.py \
+    --dataset ESOL \
+    --data_dir ./dataset/ESOL \
+    --train_file train.csv \
+    --val_file val.csv \
+    --test_file test.csv \
+    --model_type mamba_ssm \
+    --task_type regression \
+    --epochs 100 \
+    --batch_size 32 \
+    --learning_rate 1e-3 \
+    --device cuda \
+    --no_db"
+
+# 6. 评估（训练完成后）
+podman run --rm -v "$(pwd):/workspace" --workdir /workspace \
+  --device nvidia.com/gpu=all localhost/bimamba \
+  bash -c "python eval.py \
+    --checkpoint ./checkpoints/ESOL_bi_mamba_best.pt \
+    --dataset ESOL \
+    --data_dir ./dataset/ESOL \
+    --test_file test.csv \
+    --model_type mamba_ssm \
+    --device cuda"
+```
+
+### 显存优化配置（RTX 5060 Ti 16GB）
+
+```bash
+# 大 batch 训练
+podman run --rm -v "$(pwd):/workspace" --workdir /workspace \
+  --device nvidia.com/gpu=all localhost/bimamba \
+  bash -c "python train.py \
+    --dataset Lipophilicity \
+    --data_dir ./dataset/Lipophilicity \
+    --train_file train.csv \
+    --val_file val.csv \
+    --test_file test.csv \
+    --model_type mamba_ssm \
+    --task_type regression \
+    --epochs 100 \
+    --batch_size 256 \
+    --num_workers 16 \
+    --learning_rate 1e-3 \
+    --device cuda \
+    --no_db"
+```
+
+---
+
+## 常见问题
+
+### 1. 训练很慢？
+- 小数据集（ESOL 1K）GPU 利用率呈脉冲式是正常的
+- 大数据集（ZINC250K 250K）GPU 会持续满载
+
+### 2. 显存不足？
+```bash
+--batch_size 8
+--d_model 128
+--n_layers 2
+```
+
+### 3. 需要重新分割数据？
+每次实验前重新执行数据分割步骤，seed 会自动递增。
+
+### 4. 如何复现之前的实验？
+查看 `.split_seed` 文件中的 seed 值，使用相同 seed 重新分割数据。
+
+---
+
+## 文件结构
+
+```
+graduation-project/
+├── dataset/
+│   ├── ESOL/
+│   │   ├── delaney.csv      # 原始数据（不要修改）
+│   │   ├── train.csv        # 分割后训练集
+│   │   ├── val.csv          # 分割后验证集
+│   │   └── test.csv         # 分割后测试集
+│   └── ...
+├── checkpoints/
+│   └── *_best.pt            # 训练好的模型
+├── src/
+│   └── data/
+│       └── molecule_dataset.py  # 数据处理函数
+├── train.py
+├── eval.py
+└── .split_seed              # 自动管理的 seed 文件
+```
