@@ -224,16 +224,20 @@ class ColumnMapping:
     confidence: float = 1.0
 
 
-def detect_column_mapping(df: pd.DataFrame) -> ColumnMapping:
+def detect_column_mapping(
+    df: pd.DataFrame, dataset_name: Optional[str] = None
+) -> ColumnMapping:
     """Auto-detect CSV column mapping (smiles_col + label_cols).
 
     Detection order:
-    1. Whitelist matching (case-insensitive SMILES_COLUMNS)
-    2. RDKit validation (sample rows, check >80% valid)
-    3. Fallback to first column as SMILES
+    1. DATASET_CONFIG check (for known datasets)
+    2. Whitelist matching (case-insensitive SMILES_COLUMNS)
+    3. RDKit validation (sample rows, check >80% valid)
+    4. Fallback to first column as SMILES
 
     Args:
         df: Loaded pandas DataFrame
+        dataset_name: Optional dataset name to match against DATASET_CONFIG
 
     Returns:
         ColumnMapping: smiles_col, label_cols, detection_method, confidence
@@ -241,7 +245,21 @@ def detect_column_mapping(df: pd.DataFrame) -> ColumnMapping:
     Raises:
         ValueError: If no valid mapping can be detected
     """
-    # 1. Whitelist matching (case-insensitive)
+    # 1. DATASET_CONFIG check (case-insensitive dataset name match)
+    if dataset_name:
+        for name, config in DATASET_CONFIG.items():
+            if name.lower() == dataset_name.lower():
+                smiles_col = config["smiles_col"]
+                label_cols = config.get("label_cols", [])
+                if smiles_col in df.columns:
+                    return ColumnMapping(
+                        smiles_col=smiles_col,
+                        label_cols=label_cols,
+                        detection_method="dataset_config",
+                        confidence=1.0,
+                    )
+
+    # 2. Whitelist matching (case-insensitive)
     for col in df.columns:
         col_lower = col.strip().lower()
         if col_lower in SMILES_COLUMNS:
@@ -366,12 +384,14 @@ class MoleculeDataset(Dataset):
         validate_smiles: bool = True,
         smiles_col: Optional[str] = None,
         label_cols: Optional[List[str]] = None,
+        dataset_name: Optional[str] = None,
     ) -> None:
         self.task_type = task_type
         self.max_length = max_length
         self.validate_smiles = validate_smiles
         self.smiles_col = smiles_col
         self.label_cols = label_cols
+        self.dataset_name = dataset_name
         self.tokenizer = MoleculeTokenizer()
         self.vocab_id = id(default_vocab)
         self.data = self.load_data_internal(data_file_path)
@@ -383,7 +403,7 @@ class MoleculeDataset(Dataset):
             smiles_col = self.smiles_col
             label_cols = self.label_cols if self.label_cols else []
         else:
-            mapping = detect_column_mapping(df)
+            mapping = detect_column_mapping(df, dataset_name=self.dataset_name)
             smiles_col = mapping.smiles_col
             label_cols = mapping.label_cols
 
@@ -589,8 +609,11 @@ def create_data_loaders(
         path: str, is_train: bool = False
     ) -> torch.utils.data.DataLoader:
         dataset = MoleculeDataset(
-            data_file_path=path, task_type=task_type, max_length=max_length,
-            smiles_col=smiles_col, label_cols=label_cols
+            data_file_path=path,
+            task_type=task_type,
+            max_length=max_length,
+            smiles_col=smiles_col,
+            label_cols=label_cols,
         )
         loader_kwargs = dict(
             batch_size=batch_size,
