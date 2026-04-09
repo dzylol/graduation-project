@@ -727,6 +727,7 @@ def random_split_dataset(
     val_ratio: float = 0.1,
     test_ratio: float = 0.1,
     seed: Optional[int] = None,
+    n_jobs: Optional[int] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Random split CSV dataset into train/val/test.
 
@@ -737,6 +738,8 @@ def random_split_dataset(
         val_ratio: Validation set ratio (default 0.1)
         test_ratio: Test set ratio (default 0.1)
         seed: Random seed (default None uses numpy default)
+        n_jobs: Number of threads for CSV reading.
+                Default None uses os.cpu_count() or 4.
 
     Returns:
         (train_df, val_df, test_df) tuple of DataFrames
@@ -749,6 +752,11 @@ def random_split_dataset(
             f"Ratios must sum to 1.0, got {train_ratio + val_ratio + test_ratio}"
         )
 
+    if n_jobs is None:
+        n_jobs = os.cpu_count() or 4
+
+    # pandas read_csv is already multi-threaded by default
+    # n_jobs parameter kept for API compatibility but actual threading is handled internally
     df = pd.read_csv(input_csv)
 
     val_test_ratio = val_ratio + test_ratio

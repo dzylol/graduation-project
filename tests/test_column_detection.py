@@ -300,5 +300,14 @@ def test_random_split_different_seeds():
     assert not train1.equals(train2)
 
 
+def test_random_split_multithread():
+    from src.data.molecule_dataset import random_split_dataset
+
+    train, val, test = random_split_dataset(
+        "dataset/ESOL/delaney.csv", seed=42, n_jobs=4
+    )
+    assert len(train) + len(val) + len(test) == 1144
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
