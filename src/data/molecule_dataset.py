@@ -123,11 +123,29 @@ smiles_token_tuple: tuple[str, ...] = (
     "At",
 )
 
+# 常见的 SMILES 列名（不区分大小写，去空白后匹配）
+SMILES_COLUMNS: set[str] = {
+    "smiles",
+    "smile",
+    "canonical_smiles",
+    "canonical",
+    "smi",
+    "structure",
+    "molecule",
+    "mol",
+    "chem_smile",
+}
+
+# 非 SMILES 数据集（明确跳过）
+IGNORED_DATASETS: set[str] = {
+    "sider",  # 药物副作用数据库，无 SMILES 列
+}
+
 special_token_tuple: tuple[str, ...] = (
-    "<pad>",  # 填充标记
-    "<unk>",  # 未知字符
-    "<bos>",  # 句子开始
-    "<eos>",  # 句子结束
+    "<pad>",
+    "<unk>",
+    "<bos>",
+    "<eos>",
 )
 
 
@@ -141,27 +159,150 @@ def build_default_vocab() -> Dict[str, int]:
             for idx, char in enumerate(smiles_token_tuple)
         }
     )
-    return vocab  # Dict[str, int]
+    return vocab
 
 
 default_vocab: Dict[str, int] = build_default_vocab()
 default_vocab_size: int = len(default_vocab)
 
+# 预定义数据集的列配置（用于自动检测失败或列名非常规的数据集）
+DATASET_CONFIG: Dict[str, Dict[str, List[str]]] = {
+    "ESOL": {
+        "smiles_col": "SMILES",
+        "label_cols": ["measured log(solubility:mol/L)"],
+    },
+    "BBBP": {
+        "smiles_col": "smiles",
+        "label_cols": ["p_np"],
+    },
+    "ZINC250K": {
+        "smiles_col": "smiles",
+        "label_cols": ["logP", "qed", "SAS"],
+    },
+    "FreeSolv": {
+        "smiles_col": "smiles",
+        "label_cols": ["freesolv"],
+    },
+    "Lipophilicity": {
+        "smiles_col": "smiles",
+        "label_cols": ["exp"],
+    },
+    "ClinTox": {
+        "smiles_col": "smiles",
+        "label_cols": ["FDA_APPROVED", "CT_TOX"],
+    },
+    "HIV": {
+        "smiles_col": "smiles",
+        "label_cols": ["HIV_active"],
+    },
+    "MUV": {
+        "smiles_col": "smiles",
+        "label_cols": [],  # 动态检测
+    },
+    "mpro": {
+        "smiles_col": "smiles",
+        "label_cols": ["IC50"],
+    },
+    "EGFR": {
+        "smiles_col": "smiles",
+        "label_cols": ["value"],
+    },
+    "bace": {
+        "smiles_col": "smiles",
+        "label_cols": ["pIC50"],
+    },
+}
 
-@dataclass  # 开启简化class模式(只适合纯数据类（只有赋值）)
-class Data:  # 开头大写的是类名
-    smiles: str  # ---> self.smiles = smiles,下同
+
+@dataclass
+class ColumnMapping:
+    """CSV column mapping result for auto-detection."""
+
+    smiles_col: str
+    label_cols: List[str]
+    detection_method: str
+    confidence: float = 1.0
+
+
+def detect_column_mapping(df: pd.DataFrame) -> ColumnMapping:
+    """Auto-detect CSV column mapping (smiles_col + label_cols).
+
+    Detection order:
+    1. Whitelist matching (case-insensitive SMILES_COLUMNS)
+    2. RDKit validation (sample rows, check >80% valid)
+    3. Fallback to first column as SMILES
+
+    Args:
+        df: Loaded pandas DataFrame
+
+    Returns:
+        ColumnMapping: smiles_col, label_cols, detection_method, confidence
+
+    Raises:
+        ValueError: If no valid mapping can be detected
+    """
+    # 1. Whitelist matching (case-insensitive)
+    for col in df.columns:
+        col_lower = col.strip().lower()
+        if col_lower in SMILES_COLUMNS:
+            label_cols = [
+                c
+                for c in df.columns
+                if c != col and pd.api.types.is_numeric_dtype(df[c])
+            ]
+            return ColumnMapping(
+                smiles_col=col,
+                label_cols=label_cols,
+                detection_method="whitelist",
+                confidence=1.0,
+            )
+
+    # 2. RDKit validation (sample first 20 rows)
+    for col in df.columns:
+        if df[col].dtype == object:
+            sample = df[col].dropna().astype(str).head(20)
+            valid_count = sum(validate_smiles_internal(s) for s in sample)
+            if valid_count >= 16:  # >80%
+                label_cols = [
+                    c
+                    for c in df.columns
+                    if c != col and pd.api.types.is_numeric_dtype(df[c])
+                ]
+                return ColumnMapping(
+                    smiles_col=col,
+                    label_cols=label_cols,
+                    detection_method="rdkit_validation",
+                    confidence=valid_count / max(len(sample), 1),
+                )
+
+    # 3. Fallback: first column is SMILES, rest are numeric labels
+    if len(df.columns) >= 2:
+        smiles_col = df.columns[0]
+        label_cols = [c for c in df.columns[1:] if pd.api.types.is_numeric_dtype(df[c])]
+        return ColumnMapping(
+            smiles_col=smiles_col,
+            label_cols=label_cols,
+            detection_method="fallback_first_column",
+            confidence=0.5,
+        )
+
+    raise ValueError(
+        f"Cannot detect column mapping. DataFrame columns: {df.columns.tolist()}"
+    )
+
+
+@dataclass
+class Data:
+    smiles: str
     labels: List[float]
 
 
 class MoleculeTokenizer:
-    """SMILES分词器，提供encode/decode方法。"""
+    """SMILES tokenizer with encode/decode methods."""
 
-    def __init__(  # 有 if-else 逻辑，无法简化。
+    def __init__(
         self,
-        given_vocab_dict: Optional[
-            Dict[str, int]
-        ] = None,  # OptionalType 表示参数可以是 Type 或者 None，不传参数也不会报错
+        given_vocab_dict: Optional[Dict[str, int]] = None,
     ) -> None:
         if given_vocab_dict is None:
             self.vocab: Dict[str, int] = default_vocab
@@ -173,10 +314,7 @@ class MoleculeTokenizer:
         self.vocab_size: int = len(self.vocab)
 
     def encode(self, smiles: str, max_length: int = 512) -> Tuple[int, ...]:
-        # id() 是 Python 内置函数，返回对象的内存地址（整数）。
-        return tokenize_smiles_cached_internal(
-            smiles, id(self.vocab), max_length
-        )  # 校验缓存是否命中
+        return tokenize_smiles_cached_internal(smiles, id(self.vocab), max_length)
 
     def decode(self, token_ids: List[int]) -> str:
         tokens: List[str] = []
@@ -218,7 +356,7 @@ def tokenize_smiles_cached_internal(
 
 
 class MoleculeDataset(Dataset):
-    """分子数据集，支持CSV/JSON/TXT格式加载、RDKit验证、分词。"""
+    """Molecular dataset with CSV/JSON/TXT loading, RDKit validation, tokenization."""
 
     def __init__(
         self,
@@ -226,24 +364,47 @@ class MoleculeDataset(Dataset):
         task_type: str = "regression",
         max_length: int = 512,
         validate_smiles: bool = True,
+        smiles_col: Optional[str] = None,
+        label_cols: Optional[List[str]] = None,
     ) -> None:
         self.task_type = task_type
         self.max_length = max_length
         self.validate_smiles = validate_smiles
+        self.smiles_col = smiles_col
+        self.label_cols = label_cols
         self.tokenizer = MoleculeTokenizer()
         self.vocab_id = id(default_vocab)
         self.data = self.load_data_internal(data_file_path)
 
     def load_csv_internal(self, path: str) -> List[Data]:
         df = pd.read_csv(path)
-        smiles_col = df.columns[0]
-        label_cols = df.columns[1:].tolist() if len(df.columns) > 1 else []
+
+        if self.smiles_col is not None:
+            smiles_col = self.smiles_col
+            label_cols = self.label_cols if self.label_cols else []
+        else:
+            mapping = detect_column_mapping(df)
+            smiles_col = mapping.smiles_col
+            label_cols = mapping.label_cols
+
         smiles_list = df[smiles_col].astype(str).tolist()
-        labels_list = (
-            df[label_cols].to_numpy().tolist()
-            if label_cols
-            else [[0.0]] * len(smiles_list)
-        )
+
+        if label_cols:
+            labels_list = []
+            for idx in range(len(smiles_list)):
+                row_labels = []
+                for col in label_cols:
+                    val = df[col].iloc[idx]
+                    if pd.isna(val):
+                        continue
+                    row_labels.append(float(val))
+                if row_labels:
+                    labels_list.append(row_labels)
+                else:
+                    labels_list.append([0.0])
+        else:
+            labels_list = [[0.0]] * len(smiles_list)
+
         return [Data(smiles=s, labels=l) for s, l in zip(smiles_list, labels_list)]
 
     def load_json_internal(self, path: str) -> List[Data]:
@@ -270,7 +431,7 @@ class MoleculeDataset(Dataset):
 
     def load_data_internal(self, data_file_path: str) -> List[Data]:
         if not os.path.exists(data_file_path):
-            raise FileNotFoundError(f"数据文件不存在: {data_file_path}")
+            raise FileNotFoundError(f"Data file not found: {data_file_path}")
         file_extension = (
             data_file_path[data_file_path.rfind(".") :] if "." in data_file_path else ""
         )
@@ -282,32 +443,83 @@ class MoleculeDataset(Dataset):
             case ".txt":
                 data = self.load_txt_internal(data_file_path)
             case _:
-                raise ValueError(f"不支持的文件格式: {data_file_path}")
+                raise ValueError(f"Unsupported file format: {data_file_path}")
         if self.validate_smiles:
             original_len = len(data)
             data = [item for item in data if validate_smiles_internal(item.smiles)]
             if len(data) < original_len:
-                print(f"已过滤{original_len - len(data)}个无效SMILES字符串")
+                print(f"Filtered {original_len - len(data)} invalid SMILES strings")
         return data
 
-    def __len__(self) -> int:  # 让对象支持 len() 函数，返回数据集的样本数量。
+    def __len__(self) -> int:
         return len(self.data)
 
-    def __getitem__(
-        self, idx: int
-    ) -> Tuple[Tensor, Tensor]:  # 让对象支持索引操作，返回指定索引的样本。
+    def __getitem__(self, idx: int) -> Tuple[Tensor, Tensor]:
         item = self.data[idx]
-        # 将 SMILES 字符串转换为 token 整数序列（字符->整数映射），不足 max_length 的用 <pad> 填充
         token_ids = tokenize_smiles_cached_internal(
-            item.smiles,  # SMILES 字符串，如 "CCO"
-            self.vocab_id,  # 词汇表 ID，用于缓存
-            self.max_length,  # 最大长度，不足则 padding
+            item.smiles,
+            self.vocab_id,
+            self.max_length,
         )
-        # 将 token 整数序列转换为 PyTorch Tensor（long 类型用于 embedding 查找）
         input_ids = torch.tensor(token_ids, dtype=torch.long)
-        # 标签类型根据任务类型决定：回归用 float（连续值）:溶解度、毒性数值，分类用 long（离散类别）比如是否有毒
         labels_tensor = torch.tensor(
             item.labels,
+            dtype=torch.float if self.task_type == "regression" else torch.long,
+        )
+        return input_ids, labels_tensor
+
+    def get_vocab_size(self) -> int:
+        return self.tokenizer.vocab_size
+
+    def get_pad_token_id(self) -> int:
+        return self.tokenizer.vocab["<pad>"]
+
+
+class DatabaseMoleculeDataset(Dataset):
+    """Molecular dataset loaded from SQLite database.
+
+    Uses MoleculeRepository to fetch molecules by dataset_name.
+    """
+
+    def __init__(
+        self,
+        dataset_name: str,
+        db_path: str = "bi_mamba_chem.db",
+        task_type: str = "regression",
+        max_length: int = 512,
+        property_name: Optional[str] = None,
+    ) -> None:
+        self.task_type = task_type
+        self.max_length = max_length
+        self.property_name = property_name
+        self.tokenizer = MoleculeTokenizer()
+        self.vocab_id = id(default_vocab)
+        from src.db.molecule_repo import MoleculeRepository
+
+        self.repo = MoleculeRepository(db_path)
+        self.molecules = self.repo.get_dataset(dataset_name)
+        if not self.molecules:
+            raise ValueError(f"No molecules found for dataset: {dataset_name}")
+
+    def __len__(self) -> int:
+        return len(self.molecules)
+
+    def __getitem__(self, idx: int) -> Tuple[Tensor, Tensor]:
+        mol = self.molecules[idx]
+        token_ids = tokenize_smiles_cached_internal(
+            mol.smiles,
+            self.vocab_id,
+            self.max_length,
+        )
+        input_ids = torch.tensor(token_ids, dtype=torch.long)
+        if self.property_name and self.property_name in mol.properties:
+            label = mol.properties[self.property_name]
+        elif mol.properties:
+            label = list(mol.properties.values())[0]
+        else:
+            label = 0.0
+        labels_tensor = torch.tensor(
+            [label],
             dtype=torch.float if self.task_type == "regression" else torch.long,
         )
         return input_ids, labels_tensor
@@ -329,7 +541,7 @@ def validate_smiles_internal(smiles: str) -> bool:
 
 
 def create_data_loaders(
-    train_path: str,
+    train_path: Optional[str] = None,
     val_path: Optional[str] = None,
     test_path: Optional[str] = None,
     batch_size: int = 32,
@@ -337,28 +549,48 @@ def create_data_loaders(
     max_length: int = 512,
     num_workers: int = 4,
     normalize: bool = True,
+    train_dataset_name: Optional[str] = None,
+    val_dataset_name: Optional[str] = None,
+    test_dataset_name: Optional[str] = None,
+    db_path: str = "bi_mamba_chem.db",
+    property_name: Optional[str] = None,
+    smiles_col: Optional[str] = None,
+    label_cols: Optional[List[str]] = None,
 ) -> Tuple:
-    """创建训练/验证/测试数据加载器。
+    """Create train/val/test DataLoaders from file paths or database datasets.
 
     Args:
-        train_path: 训练集文件路径（必需）
-        val_path: 验证集文件路径（可选）
-        test_path: 测试集文件路径（可选）
-        batch_size: 每批样本数，默认 32
-        task_type: 任务类型，"regression" 或 "classification"
-        max_length: SMILES token 序列最大长度
-        num_workers: 数据加载的进程数
-        normalize: 是否对回归标签进行 z-score 归一化（默认 True）
+        train_path: Training set file path (CSV/JSON/TXT) - mutually exclusive with train_dataset_name
+        val_path: Validation set file path (optional)
+        test_path: Test set file path (optional)
+        train_dataset_name: Database dataset name for training - mutually exclusive with train_path
+        val_dataset_name: Database dataset name for validation (optional)
+        test_dataset_name: Database dataset name for testing (optional)
+        batch_size: Samples per batch, default 32
+        task_type: "regression" or "classification"
+        max_length: Max SMILES token sequence length
+        num_workers: Data loading worker processes
+        normalize: Apply z-score normalization for regression labels (default True)
+        db_path: Path to SQLite database (when using dataset_name)
+        property_name: Property to use as label when loading from database
 
     Returns:
-        (train_loader, val_loader, test_loader, normalizer) 元组
-        normalizer 为 LabelNormalizer 或 None（分类任务或不 normalize 时）
+        (train_loader, val_loader, test_loader, normalizer) tuple
+        normalizer is LabelNormalizer or None (classification or normalize=False)
     """
     normalizer: Optional[LabelNormalizer] = None
 
-    def make_loader(path: str, is_train: bool = False) -> torch.utils.data.DataLoader:
+    if train_path and train_dataset_name:
+        raise ValueError("Cannot specify both train_path and train_dataset_name")
+    if train_path is None and train_dataset_name is None:
+        raise ValueError("Must specify either train_path or train_dataset_name")
+
+    def make_file_loader(
+        path: str, is_train: bool = False
+    ) -> torch.utils.data.DataLoader:
         dataset = MoleculeDataset(
-            data_file_path=path, task_type=task_type, max_length=max_length
+            data_file_path=path, task_type=task_type, max_length=max_length,
+            smiles_col=smiles_col, label_cols=label_cols
         )
         loader_kwargs = dict(
             batch_size=batch_size,
@@ -370,7 +602,33 @@ def create_data_loaders(
         )
         return torch.utils.data.DataLoader(dataset, **loader_kwargs)
 
-    train_loader = make_loader(train_path, is_train=True)
+    def make_db_loader(
+        dataset_name: str, is_train: bool = False
+    ) -> torch.utils.data.DataLoader:
+        dataset = DatabaseMoleculeDataset(
+            dataset_name=dataset_name,
+            db_path=db_path,
+            task_type=task_type,
+            max_length=max_length,
+            property_name=property_name,
+        )
+        loader_kwargs = dict(
+            batch_size=batch_size,
+            shuffle=is_train,
+            num_workers=num_workers,
+            pin_memory=True,
+            persistent_workers=True if num_workers > 0 and is_train else False,
+            prefetch_factor=4 if num_workers > 0 else None,
+        )
+        return torch.utils.data.DataLoader(dataset, **loader_kwargs)
+
+    if train_dataset_name:
+        train_loader = make_db_loader(train_dataset_name, is_train=True)
+    else:
+        assert train_path is not None, (
+            "train_path required when train_dataset_name not provided"
+        )
+        train_loader = make_file_loader(train_path, is_train=True)
 
     if normalize and task_type == "regression":
         normalizer = LabelNormalizer()
@@ -393,25 +651,33 @@ def create_data_loaders(
             prefetch_factor=4 if num_workers > 0 else None,
         )
 
-    val_loader = (
-        make_loader(val_path) if val_path and os.path.exists(val_path) else None
-    )
-    test_loader = (
-        make_loader(test_path) if test_path and os.path.exists(test_path) else None
-    )
+    if val_dataset_name:
+        val_loader = make_db_loader(val_dataset_name)
+    elif val_path:
+        val_loader = make_file_loader(val_path) if os.path.exists(val_path) else None
+    else:
+        val_loader = None
+
+    if test_dataset_name:
+        test_loader = make_db_loader(test_dataset_name)
+    elif test_path:
+        test_loader = make_file_loader(test_path) if os.path.exists(test_path) else None
+    else:
+        test_loader = None
+
     return train_loader, val_loader, test_loader, normalizer
 
 
 def list_available_databases(
     database_dir: str = "src/data/database",
 ) -> list[str]:
-    """列出数据库目录中的所有可用数据库文件。
+    """List all available database files in directory.
 
     Args:
-        database_dir: 数据库文件夹路径
+        database_dir: Path to database directory
 
     Returns:
-        数据库文件路径列表
+        List of database file paths
     """
     if not os.path.exists(database_dir):
         return []
@@ -427,31 +693,33 @@ def list_available_databases(
 def select_database(
     database_dir: str = "src/data/database",
 ) -> str:
-    """交互式选择数据库文件。
+    """Interactively select a database file.
 
     Args:
-        database_dir: 数据库文件夹路径
+        database_dir: Path to database directory
 
     Returns:
-        选择的数据库文件路径
+        Selected database file path
 
     Raises:
-        FileNotFoundError: 没有找到任何数据库文件
+        FileNotFoundError: No database files found
     """
     db_files = list_available_databases(database_dir)
 
     if not db_files:
-        raise FileNotFoundError(f"数据库目录为空或不存在: {database_dir}")
+        raise FileNotFoundError(
+            f"Database directory empty or not found: {database_dir}"
+        )
 
-    print("可用数据库：")
+    print("Available databases:")
     for i, db_path in enumerate(db_files, 1):
         print(f"  [{i}] {os.path.basename(db_path)}")
 
     while True:
         try:
-            choice = int(input("\n请选择数据库编号: "))
+            choice = int(input("\nSelect database number: "))
             if 1 <= choice <= len(db_files):
                 return db_files[choice - 1]
-            print(f"无效选择，请输入 1-{len(db_files)}")
+            print(f"Invalid choice, enter 1-{len(db_files)}")
         except ValueError:
-            print("请输入有效数字")
+            print("Enter a valid number")
