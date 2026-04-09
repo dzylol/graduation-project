@@ -274,5 +274,31 @@ class TestMoleculeDatasetLoading:
             os.unlink(temp_file)
 
 
+def test_random_split_ratio():
+    from src.data.molecule_dataset import random_split_dataset
+
+    train, val, test = random_split_dataset("dataset/ESOL/delaney.csv", seed=42)
+    total = len(train) + len(val) + len(test)
+    assert abs(len(train) / total - 0.8) < 0.01
+    assert abs(len(val) / total - 0.1) < 0.01
+    assert abs(len(test) / total - 0.1) < 0.01
+
+
+def test_random_split_reproducibility():
+    from src.data.molecule_dataset import random_split_dataset
+
+    train1, _, _ = random_split_dataset("dataset/ESOL/delaney.csv", seed=42)
+    train2, _, _ = random_split_dataset("dataset/ESOL/delaney.csv", seed=42)
+    assert train1.equals(train2)
+
+
+def test_random_split_different_seeds():
+    from src.data.molecule_dataset import random_split_dataset
+
+    train1, _, _ = random_split_dataset("dataset/ESOL/delaney.csv", seed=42)
+    train2, _, _ = random_split_dataset("dataset/ESOL/delaney.csv", seed=123)
+    assert not train1.equals(train2)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

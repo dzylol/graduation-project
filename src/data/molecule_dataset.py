@@ -16,6 +16,7 @@ import pandas as pd
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
+from sklearn.model_selection import train_test_split
 
 from rdkit import Chem
 
@@ -691,6 +692,91 @@ def create_data_loaders(
         test_loader = None
 
     return train_loader, val_loader, test_loader, normalizer
+
+
+_SPLIT_SEED_FILE = ".split_seed"
+
+
+def get_next_split_seed() -> int:
+    """Get and increment next split seed."""
+    try:
+        with open(_SPLIT_SEED_FILE, "r") as f:
+            seed = int(f.read().strip())
+    except FileNotFoundError:
+        seed = 42
+
+    with open(_SPLIT_SEED_FILE, "w") as f:
+        f.write(str(seed + 1))
+
+    return seed
+
+
+def get_current_split_seed() -> int:
+    """Get current split seed without incrementing."""
+    try:
+        with open(_SPLIT_SEED_FILE, "r") as f:
+            return int(f.read().strip())
+    except FileNotFoundError:
+        return 42
+
+
+def random_split_dataset(
+    input_csv: str,
+    output_dir: Optional[str] = None,
+    train_ratio: float = 0.8,
+    val_ratio: float = 0.1,
+    test_ratio: float = 0.1,
+    seed: Optional[int] = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Random split CSV dataset into train/val/test.
+
+    Args:
+        input_csv: Input CSV file path
+        output_dir: Output directory (optional, saves files if specified)
+        train_ratio: Training set ratio (default 0.8)
+        val_ratio: Validation set ratio (default 0.1)
+        test_ratio: Test set ratio (default 0.1)
+        seed: Random seed (default None uses numpy default)
+
+    Returns:
+        (train_df, val_df, test_df) tuple of DataFrames
+
+    Raises:
+        ValueError: If ratios don't sum to 1.0
+    """
+    if abs(train_ratio + val_ratio + test_ratio - 1.0) > 0.001:
+        raise ValueError(
+            f"Ratios must sum to 1.0, got {train_ratio + val_ratio + test_ratio}"
+        )
+
+    df = pd.read_csv(input_csv)
+
+    val_test_ratio = val_ratio + test_ratio
+    train_df, val_test_df = train_test_split(
+        df,
+        train_size=train_ratio,
+        random_state=seed,
+        shuffle=True,
+    )
+
+    relative_val_ratio = val_ratio / val_test_ratio if val_test_ratio > 0 else 0.5
+    val_df, test_df = train_test_split(
+        val_test_df,
+        train_size=relative_val_ratio,
+        random_state=seed,
+        shuffle=True,
+    )
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        train_path = os.path.join(output_dir, "train.csv")
+        val_path = os.path.join(output_dir, "val.csv")
+        test_path = os.path.join(output_dir, "test.csv")
+        train_df.to_csv(train_path, index=False)
+        val_df.to_csv(val_path, index=False)
+        test_df.to_csv(test_path, index=False)
+
+    return train_df, val_df, test_df
 
 
 def list_available_databases(
