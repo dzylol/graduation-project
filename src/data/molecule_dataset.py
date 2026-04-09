@@ -576,6 +576,7 @@ def create_data_loaders(
     property_name: Optional[str] = None,
     smiles_col: Optional[str] = None,
     label_cols: Optional[List[str]] = None,
+    dataset_name: Optional[str] = None,
 ) -> Tuple:
     """Create train/val/test DataLoaders from file paths or database datasets.
 
@@ -614,6 +615,7 @@ def create_data_loaders(
             max_length=max_length,
             smiles_col=smiles_col,
             label_cols=label_cols,
+            dataset_name=dataset_name,
         )
         loader_kwargs = dict(
             batch_size=batch_size,

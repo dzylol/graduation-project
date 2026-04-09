@@ -500,6 +500,7 @@ def main():
         test_path=test_path,
         batch_size=args.batch_size,
         task_type=args.task_type,
+        dataset_name=args.dataset,
         max_length=args.max_length,
         num_workers=args.num_workers,
         normalize=(args.task_type == "regression"),
