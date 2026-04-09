@@ -165,6 +165,60 @@ CCO,-2.5,0,1.3
 CC(=O)OC,-1.8,1,0.5
 ```
 
+### 数据分割（随机分割）
+
+支持每次实验使用不同的随机 seed 分割数据集，确保实验可复现且数据混合不同：
+
+```python
+from src.data.molecule_dataset import random_split_dataset, get_next_split_seed, get_current_split_seed
+
+# 方式1: 自动获取 seed（每次递增）
+seed = get_next_split_seed()  # 返回当前 seed 并自动递增
+train, val, test = random_split_dataset(
+    "dataset/ESOL/delaney.csv",
+    output_dir="dataset/ESOL/",
+    seed=seed
+)
+
+# 方式2: 指定 seed（可复现）
+train, val, test = random_split_dataset(
+    "dataset/ESOL/delaney.csv",
+    seed=42  # 相同 seed 产生相同分割
+)
+
+# 查看当前 seed（不递增）
+current_seed = get_current_split_seed()
+print(f"当前 seed: {current_seed}")
+```
+
+**分割参数**：
+```python
+random_split_dataset(
+    input_csv="dataset/ESOL/delaney.csv",
+    output_dir="dataset/ESOL/",  # 可选：保存到文件
+    train_ratio=0.8,              # 默认 0.8
+    val_ratio=0.1,              # 默认 0.1
+    test_ratio=0.1,             # 默认 0.1
+    seed=42,                    # 随机种子
+    n_jobs=None                 # None=使用全部 CPU 核心
+)
+```
+
+**seed 管理机制**：
+- seed 默认从 42 开始
+- `get_next_split_seed()` 获取当前 seed 并自动递增
+- seed 持久化在 `.split_seed` 文件中
+- 不同 seed 产生不同分割结果，方便做数据增强实验
+
+**多线程加速**：
+```python
+# 自动使用全部 CPU 核心（推荐）
+train, val, test = random_split_dataset("dataset/ZINC250K/...", n_jobs=None)
+
+# 指定线程数
+train, val, test = random_split_dataset("dataset/ZINC250K/...", n_jobs=8)
+```
+
 ---
 
 ## 训练
