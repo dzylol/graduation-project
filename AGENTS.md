@@ -1,14 +1,13 @@
 # AGENTS.md - Bi-Mamba-Chem
 
-**Generated:** 2026-03-23
-**Commit:** 4e2d9f2 (main)
+**Generated:** 2026-04-12
+**Commit:** dd21188 (main)
 **Language:** Python (PyTorch + RDKit)
 
-When reasoning through a problem, use draft-style thinking:
+When reasoning through problem, use draft-style thinking:
 - Keep reasoning steps brief (≤5 words per step)
 - Only expand when writing final code or answer
 - No verbose explanations unless explicitly asked
-
 
 ## Overview
 Bidirectional Mamba SSM for molecular property prediction. O(N) linear complexity vs Transformer's O(N²).
@@ -18,10 +17,12 @@ Bidirectional Mamba SSM for molecular property prediction. O(N) linear complexit
 |------|------|
 | `train.py` | Single-task training (ESOL/BBBP/ClinTox/FreeSolv/Lipophilicity) |
 | `eval.py` | Model evaluation on test sets |
-| `download_datasets.py` | Download full MoleculeNet datasets via DeepChem |
+| `download_datasets.py` | ⚠️ **MISSING** — documented but not present in codebase |
 | `scripts/manage_experiments.py` | SQLite experiment CRUD |
+| `scripts/batch_train_phase1.py` | ⚠️ **UNDOCUMENTED** — verify before using, optimized for RTX 5060 Ti |
 
 **Note:** `train_multitask.py` referenced in README does NOT exist — do not look for it.
+**Note:** `scripts/batch_train_phase1.py` exists but is undocumented — verify before using.
 
 ## Key Commands
 
@@ -66,9 +67,9 @@ from src.models.bimamba import BiMambaForPropertyPrediction
 ```
 
 ### Conventions (project-specific deviations)
-- Type hints **required** on all function signatures
+- Type hints **required** on all fn signatures
 - Dataclasses as DTOs (not bare dicts)
-- ≤50 lines per function
+- ≤50 lines per fn
 - `validate_smiles()` before RDKit processing
 - Device order: cuda → mps → cpu (see `get_device()`)
 - Z-score normalization is done automatically for regression tasks via `LabelNormalizer`
@@ -157,8 +158,8 @@ train.py, eval.py, download_datasets.py
 
 | Aspect | Status |
 |--------|--------|
-| CI/CD | **None** — no GitHub Actions, Docker, or automated pipelines |
-| Anti-patterns | **Clean** — no DO NOT/NEVER/ALWAYS/WARNING comments in source |
+| CI/CD | **Partial** — Dockerfile exists but NOT integrated with CI; no GitHub Actions workflows |
+| Anti-patterns | **Clean** — no DO NOT/NEVER/ALWAYS/WARNING comments in source code |
 | Package config | **None** — missing `__init__.py` in `src/models/` and `src/data/`; not pip-installable (use `PYTHONPATH=.`) |
 | Test config | **None** — pytest runs without config file |
 
@@ -180,3 +181,4 @@ train.py, eval.py, download_datasets.py
 python -m pytest tests/ -v   # All tests
 python tests/test_model.py    # Standalone (no pytest)
 ```
+

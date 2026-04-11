@@ -1,14 +1,14 @@
 # AGENTS.md - src/db/
 
-**SQLite persistence layer.** Experiment tracking + molecule storage.
+**SQLite persistence layer.** Experiment tracking + molecule storage with dataset management.
 
 ## Structure
 ```
 src/db/
 ├── __init__.py
-├── database.py          # Database singleton, Molecule/Experiment dataclasses (130L)
+├── database.py          # Database singleton, Molecule/Experiment dataclasses (145L)
 ├── experiment_repo.py   # ExperimentRepository CRUD (251L)
-├── molecule_repo.py     # MoleculeRepository CRUD
+├── molecule_repo.py     # MoleculeRepository CRUD + dataset import
 └── database/            # (empty - do not use)
 ```
 
@@ -17,11 +17,21 @@ src/db/
 | Symbol | Type | Location | Role |
 |--------|------|----------|------|
 | `Database` | class | database.py | SQLite singleton with context managers |
-| `Molecule` | dataclass | database.py | Molecule entity |
+| `Molecule` | dataclass | database.py | Molecule entity (includes dataset_name) |
 | `Experiment` | dataclass | database.py | Experiment entity |
 | `ExperimentRepository` | class | experiment_repo.py | Experiment CRUD |
-| `MoleculeRepository` | class | molecule_repo.py | Molecule CRUD |
+| `MoleculeRepository` | class | molecule_repo.py | Molecule CRUD + dataset operations |
 | `get_db` | factory | database.py | Database instance accessor |
+
+## MoleculeRepository Dataset Methods
+
+| Method | Description |
+|--------|-------------|
+| `import_from_csv(path, dataset_name)` | Import CSV file into database with dataset tag |
+| `get_dataset(dataset_name)` | Fetch all molecules for a dataset |
+| `get_dataset_stats(dataset_name)` | Get count of molecules in dataset |
+| `list_datasets()` | List all dataset names in database |
+| `delete_dataset(dataset_name)` | Remove all molecules for a dataset |
 
 ## Conventions (THIS MODULE)
 

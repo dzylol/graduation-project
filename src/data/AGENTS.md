@@ -1,12 +1,11 @@
 # AGENTS.md - src/data/
 
-**SMILES tokenization + molecular dataset handling.** CSV/JSON/TXT loading, RDKit validation, z-score normalization.
+**SMILES tokenization + molecular dataset handling.** CSV/JSON/TXT loading, RDKit validation, z-score normalization, SQLite database support.
 
 ## Structure
 ```
 src/data/
-├── molecule_dataset.py    # MoleculeTokenizer, MoleculeDataset, LabelNormalizer, create_data_loaders
-└── database/           # (empty - do not use)
+└── molecule_dataset.py    # MoleculeTokenizer, MoleculeDataset, DatabaseMoleculeDataset, LabelNormalizer, create_data_loaders
 ```
 
 ## Key Classes
@@ -14,10 +13,11 @@ src/data/
 | Symbol | Type | Location | Role |
 |--------|------|----------|------|
 | `MoleculeTokenizer` | class | molecule_dataset.py | SMILES → token indices |
-| `MoleculeDataset` | class | molecule_dataset.py | Torch Dataset wrapper |
+| `MoleculeDataset` | class | molecule_dataset.py | Torch Dataset from file (CSV/JSON/TXT) |
+| `DatabaseMoleculeDataset` | class | molecule_dataset.py | Torch Dataset from SQLite database |
 | `LabelNormalizer` | class | molecule_dataset.py | Z-score normalization for regression |
 | `NormalizedDataset` | class | molecule_dataset.py | Dataset wrapper that applies z-score to labels |
-| `create_data_loaders` | factory | molecule_dataset.py | Train/val/test DataLoaders + normalizer |
+| `create_data_loaders` | factory | molecule_dataset.py | Train/val/test DataLoaders from file or database |
 
 ## Token Vocabulary
 
@@ -33,6 +33,28 @@ src/data/
 - Dataclasses as DTOs (not bare dicts)
 - Type hints required on all function signatures
 - `create_data_loaders()` returns 4-tuple: `(train, val, test, normalizer)`
+
+## Data Loading (Dual Mode)
+
+### File Mode
+```python
+train_loader, val_loader, test_loader, normalizer = create_data_loaders(
+    train_path="data/ESOL/train.csv",
+    val_path="data/ESOL/val.csv",
+)
+```
+
+### Database Mode
+```python
+from src.db.molecule_repo import MoleculeRepository
+repo = MoleculeRepository()
+repo.import_from_csv("dataset/ESOL/delaney.csv", dataset_name="ESOL")
+train_loader, val_loader, test_loader, normalizer = create_data_loaders(
+    train_dataset_name="ESOL",
+    db_path="bi_mamba_chem.db",
+    property_name="measured log(solubility:mol/L)",
+)
+```
 
 ## Data Format (CSV)
 
