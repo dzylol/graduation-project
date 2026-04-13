@@ -126,7 +126,12 @@ def parse_args():
         choices=["manual", "mamba_ssm"],
         help="模型类型: manual (无外部依赖) 或 mamba_ssm (需要 mamba-ssm 包)",
     )
-    parser.add_argument("--d_model", type=int, default=256, help="模型维度")
+    parser.add_argument(
+        "--d_model", type=int, default=256, help="模型维度 (embedding/输出维度)"
+    )
+    parser.add_argument(
+        "--d_mamba", type=int, default=256, help="Mamba 内部维度 (必须是 256 倍数)"
+    )
     parser.add_argument("--n_layers", type=int, default=4, help="BiMamba 层数")
     parser.add_argument(
         "--task_type",
@@ -537,6 +542,7 @@ def main():
         model_config = {
             "model_type": args.model_type,
             "d_model": args.d_model,
+            "d_mamba": args.d_mamba,
             "n_layers": args.n_layers,
             "pooling": args.pooling,
             "dropout": args.dropout,
@@ -579,6 +585,7 @@ def main():
         model = create_bimamba_mamba_ssm(
             vocab_size=vocab_size,
             d_model=args.d_model,
+            d_mamba=args.d_mamba,
             n_layers=args.n_layers,
             task_type=args.task_type,
             num_labels=args.num_labels,

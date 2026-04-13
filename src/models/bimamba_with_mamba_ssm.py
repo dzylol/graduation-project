@@ -234,6 +234,7 @@ class BiMambaEncoder(nn.Module):
         self,
         vocab_size: int,
         d_model: int = 256,
+        d_mamba: int = 256,
         n_layers: int = 4,
         d_state: int = 64,
         d_conv: int = 4,
@@ -249,10 +250,12 @@ class BiMambaEncoder(nn.Module):
 
         self.vocab_size = vocab_size
         self.d_model = d_model
+        self.d_mamba = d_mamba
         self.n_layers = n_layers
         self.max_seq_length = max_seq_length
         self.pad_token_id = pad_token_id
 
+        # Embedding uses d_model (smaller, fewer params)
         self.token_embedding = nn.Embedding(
             vocab_size, d_model, padding_idx=pad_token_id, **factory_kwargs
         )
@@ -260,18 +263,25 @@ class BiMambaEncoder(nn.Module):
             max_seq_length, d_model, **factory_kwargs
         )
 
-        # Forward/backward layers have independent weights (not shared)
+        # Project from d_model to d_mamba for Mamba layers
+        self.input_proj = nn.Linear(d_model, d_mamba, **factory_kwargs)
+
+        # Forward/backward layers use d_mamba (satisfies Triton stride requirement)
         self.forward_layers = self._make_layers(
-            d_model, d_state, d_conv, expand, factory_kwargs
+            d_mamba, d_state, d_conv, expand, factory_kwargs
         )
         self.backward_layers = self._make_layers(
-            d_model, d_state, d_conv, expand, factory_kwargs
+            d_mamba, d_state, d_conv, expand, factory_kwargs
         )
 
-        self.norm = nn.LayerNorm(d_model, **factory_kwargs)
+        # Fusion gate uses d_mamba
+        self.fusion_gate = nn.Linear(d_mamba * 2, d_mamba * 2, **factory_kwargs)
+        self.norm = nn.LayerNorm(d_mamba, **factory_kwargs)
+
+        # Project back from d_mamba to d_model for output
+        self.output_proj = nn.Linear(d_mamba, d_model, **factory_kwargs)
+
         self.dropout = nn.Dropout(dropout)
-        # Projects concatenated [forward; backward] → [gate_f; gate_b]
-        self.fusion_gate = nn.Linear(d_model * 2, d_model * 2, **factory_kwargs)
 
     def _make_layers(
         self,
@@ -335,6 +345,9 @@ class BiMambaEncoder(nn.Module):
         position_embeds = self.position_embedding(position_ids)
         hidden_states = self.dropout(token_embeds + position_embeds)
 
+        # Project from d_model to d_mamba
+        hidden_states = self.input_proj(hidden_states)
+
         if cls_token is not None:
             hidden_states = torch.cat([cls_token, hidden_states], dim=1)
 
@@ -367,7 +380,9 @@ class BiMambaEncoder(nn.Module):
         gate_forward, gate_backward = gate.chunk(2, dim=-1)
         fused_hidden = gate_forward * forward_hidden + gate_backward * backward_hidden
 
-        return self.norm(fused_hidden)
+        # Project back from d_mamba to d_model
+        fused_hidden = self.output_proj(self.norm(fused_hidden))
+        return fused_hidden
 
 
 class BiMambaForPropertyPrediction(nn.Module):
@@ -404,6 +419,7 @@ class BiMambaForPropertyPrediction(nn.Module):
         self,
         vocab_size: int,
         d_model: int = 256,
+        d_mamba: int = 256,
         n_layers: int = 4,
         d_state: int = 64,
         d_conv: int = 4,
@@ -428,6 +444,7 @@ class BiMambaForPropertyPrediction(nn.Module):
         self.encoder = BiMambaEncoder(
             vocab_size=vocab_size,
             d_model=d_model,
+            d_mamba=d_mamba,
             n_layers=n_layers,
             d_state=d_state,
             d_conv=d_conv,
@@ -524,42 +541,16 @@ class BiMambaForPropertyPrediction(nn.Module):
 def create_bimamba_model(
     vocab_size: int,
     d_model: int = 256,
+    d_mamba: int = 256,
     n_layers: int = 4,
     task_type: str = "regression",
     num_labels: int = 1,
     **kwargs,
 ) -> BiMambaForPropertyPrediction:
-    """
-    工厂函数：创建 BiMamba 分子性质预测模型。
-
-    与 bimamba.py 中 create_bimamba_model 的区别：
-        - 本函数创建基于 mamba_ssm 库的实现
-        - 默认 d_state=64（bimamba.py 手动实现默认为 16）
-
-    Args:
-        vocab_size: 词表大小
-        d_model: 模型维度（默认 256）
-        n_layers: 层数（默认 4）
-        task_type: "regression" 或 "classification"
-        num_labels: 标签数（默认 1，用于回归）
-        **kwargs: 传递给 BiMambaForPropertyPrediction 的其他参数
-                  例如: d_state, d_conv, expand, pooling, dropout, max_seq_length
-
-    Returns:
-        BiMambaForPropertyPrediction 实例
-
-    使用示例:
-        model = create_bimamba_model(
-            vocab_size=50,
-            d_model=256,
-            n_layers=4,
-            task_type="regression",
-            num_labels=1,
-        )
-    """
     return BiMambaForPropertyPrediction(
         vocab_size=vocab_size,
         d_model=d_model,
+        d_mamba=d_mamba,
         n_layers=n_layers,
         task_type=task_type,
         num_labels=num_labels,
