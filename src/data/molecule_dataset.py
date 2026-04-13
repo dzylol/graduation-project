@@ -912,9 +912,36 @@ def scaffold_split_dataset(
     np.random.shuffle(val_indices)
     np.random.shuffle(test_indices)
 
-    train_df = df.iloc[train_indices].reset_index(drop=True)
-    val_df = df.iloc[val_indices].reset_index(drop=True)
-    test_df = df.iloc[test_indices].reset_index(drop=True)
+    # Auto-detect label column if not specified
+    if label_col is None:
+        numeric_cols = [
+            c
+            for c in df.columns
+            if c != smiles_col and pd.api.types.is_numeric_dtype(df[c])
+        ]
+        if len(numeric_cols) == 1:
+            label_col = numeric_cols[0]
+        else:
+            # Try common label column names
+            for col in [
+                "measured log(solubility:mol/L)",
+                "solubility",
+                "label",
+                "value",
+            ]:
+                if col in numeric_cols:
+                    label_col = col
+                    break
+            if label_col is None:
+                raise ValueError(
+                    f"Could not auto-detect label column. Found: {numeric_cols}"
+                )
+
+    # Keep only smiles and label columns
+    cols_to_keep = [smiles_col, label_col]
+    train_df = df.iloc[train_indices][cols_to_keep].reset_index(drop=True)
+    val_df = df.iloc[val_indices][cols_to_keep].reset_index(drop=True)
+    test_df = df.iloc[test_indices][cols_to_keep].reset_index(drop=True)
 
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
