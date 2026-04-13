@@ -485,7 +485,7 @@ class MoleculeDataset(Dataset):
         input_ids = torch.tensor(token_ids, dtype=torch.long)
         labels_tensor = torch.tensor(
             item.labels,
-            dtype=torch.float if self.task_type == "regression" else torch.long,
+            dtype=torch.float,
         )
         return input_ids, labels_tensor
 

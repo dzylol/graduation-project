@@ -304,6 +304,9 @@ def train_epoch(
     for batch_idx, (input_ids, labels) in enumerate(train_loader):
         input_ids = input_ids.to(device)
         labels = labels.to(device)
+        # BCEWithLogitsLoss expects float labels
+        if args.task_type == "classification":
+            labels = labels.float()
 
         optimizer.zero_grad()
 
@@ -757,24 +760,12 @@ if __name__ == "__main__":
         _cleanup_done[0] = True
         logger.info("清理 DataLoader worker 进程...")
         import os
-        import signal
+        import subprocess
+
         try:
-            import psutil
-            parent = psutil.Process(os.getpid())
-            children = parent.children(recursive=True)
-            for child in children:
-                try:
-                    logger.info(f"终止子进程: {child.pid}")
-                    child.terminate()
-            gone, alive = psutil.wait_procs(children, timeout=3)
-            for p in alive:
-                try:
-                    p.kill()
-                except psutil.NoSuchProcess:
-                    pass
-        except ImportError:
-            os.system("pkill -9 -f 'DataLoader worker' 2>/dev/null")
-            os.system("pkill -9 -f '_worker.py' 2>/dev/null")
+            subprocess.run(["pkill", "-9", "-f", "_worker.py"], timeout=3)
+        except:
+            pass
 
     def _signal_handler(signum, frame):
         logger.info(f"收到信号 {signum}，正在退出...")
