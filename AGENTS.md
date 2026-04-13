@@ -1,7 +1,7 @@
 # AGENTS.md - Bi-Mamba-Chem
 
-**Generated:** 2026-04-12
-**Commit:** dd21188 (main)
+**Generated:** 2026-04-13
+**Commit:** 0446056 (main)
 **Language:** Python (PyTorch + RDKit)
 
 When reasoning through problem, use draft-style thinking:
@@ -134,7 +134,8 @@ tests/
 ├── test_model.py
 └── test_data.py
 scripts/
-└── manage_experiments.py
+├── manage_experiments.py
+└── benchmarks/       # benchmark_efficiency.py, benchmark_transformer.py, split_*.py
 train.py, eval.py, download_datasets.py
 ```
 
@@ -172,6 +173,7 @@ train.py, eval.py, download_datasets.py
 | `src/data/` | AGENTS.md | SMILES tokenization, dataset handling, z-score norm |
 | `src/db/` | AGENTS.md | SQLite persistence, ExperimentRepository, singleton pattern |
 | `tests/` | AGENTS.md | Test conventions, dual-mode execution, pytest patterns |
+| `scripts/benchmarks/` | AGENTS.md | Efficiency benchmarking scripts, O(N) complexity validation |
 
 ## Testing Conventions
 
