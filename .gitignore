@@ -67,3 +67,6 @@ Thumbs.db
 
 # Experiment data (large files)
 experiment-data/checkpoints/
+
+# Sisyphus (orchestration output)
+.sisyphus/

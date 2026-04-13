@@ -414,12 +414,12 @@ def evaluate(
     # -------------------------------------------------------------------------
     if args.task_type == "regression":
         # 回归任务指标
-        # 如果有 normalizer，先反归一化到原始空间
+        # 如果有 normalizer，先反归一化预测值到原始空间
+        # 注意：all_labels 来自 val_loader，是原始空间（未归一化），不需要 inverse_transform
         if normalizer is not None and normalizer.is_fitted:
             all_preds_orig = normalizer.inverse_transform(all_preds.numpy())
-            all_labels_orig = normalizer.inverse_transform(all_labels.numpy())
             all_preds = torch.tensor(all_preds_orig, dtype=all_preds.dtype)
-            all_labels = torch.tensor(all_labels_orig, dtype=all_labels.dtype)
+            # all_labels 已经是原始空间（val_loader 没有 NormalizedDataset 包装）
 
         mae = torch.mean(torch.abs(all_preds - all_labels)).item()  # 平均绝对误差
         mse = torch.mean((all_preds - all_labels) ** 2).item()  # 均方误差
