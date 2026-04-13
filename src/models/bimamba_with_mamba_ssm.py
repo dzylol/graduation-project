@@ -477,7 +477,7 @@ class BiMambaForPropertyPrediction(nn.Module):
 
         if self.pooling == "cls":
             encoder_outputs = torch.cat(
-                [cls_tokens.expand(-1, encoder_outputs.size(1), -1), encoder_outputs],
+                [cls_token.expand(-1, encoder_outputs.size(1), -1), encoder_outputs],
                 dim=1,
             )
 
@@ -514,6 +514,8 @@ class BiMambaForPropertyPrediction(nn.Module):
         if labels is not None:
             if labels.dim() > 1 and labels.shape[-1] == 1:
                 labels = labels.squeeze(-1)
+            if self.task_type == "classification" and labels.dtype == torch.long:
+                labels = labels.float()
             loss = self.loss_fct(logits, labels)
 
         return logits, loss

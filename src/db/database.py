@@ -12,6 +12,7 @@ class Molecule:
     smiles: str = ""
     canonical_smiles: str = ""
     properties: Dict[str, float] = field(default_factory=dict)
+    dataset_name: Optional[str] = None
     created_at: Optional[str] = None
 
 
@@ -67,10 +68,12 @@ class Database:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS molecules (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    smiles TEXT NOT NULL UNIQUE,
+                    smiles TEXT NOT NULL,
                     canonical_smiles TEXT,
                     properties TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    dataset_name TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(smiles, dataset_name)
                 )
             """)
 
@@ -108,6 +111,11 @@ class Database:
             """)
 
             cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_molecules_dataset 
+                ON molecules(dataset_name)
+            """)
+
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_experiments_dataset 
                 ON experiments(dataset)
             """)
@@ -118,6 +126,13 @@ class Database:
             """)
 
             conn.commit()
+
+            # Migration: add dataset_name column if it doesn't exist (for existing databases)
+            cursor.execute("PRAGMA table_info(molecules)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "dataset_name" not in columns:
+                cursor.execute("ALTER TABLE molecules ADD COLUMN dataset_name TEXT")
+                conn.commit()
 
 
 _db_instance: Optional[Database] = None
