@@ -364,6 +364,7 @@ def evaluate(
     val_loader: DataLoader,
     device: torch.device,
     args: argparse.Namespace,
+    normalizer=None,
 ) -> Dict[str, float]:
     """
     在验证集上评估模型
@@ -373,6 +374,7 @@ def evaluate(
         val_loader: 验证数据加载器
         device: 计算设备
         args: 命令行参数
+        normalizer: LabelNormalizer for denormalizing regression predictions
 
     Returns:
         评估指标字典
@@ -412,6 +414,13 @@ def evaluate(
     # -------------------------------------------------------------------------
     if args.task_type == "regression":
         # 回归任务指标
+        # 如果有 normalizer，先反归一化到原始空间
+        if normalizer is not None and normalizer.is_fitted:
+            all_preds_orig = normalizer.inverse_transform(all_preds.numpy())
+            all_labels_orig = normalizer.inverse_transform(all_labels.numpy())
+            all_preds = torch.tensor(all_preds_orig, dtype=all_preds.dtype)
+            all_labels = torch.tensor(all_labels_orig, dtype=all_labels.dtype)
+
         mae = torch.mean(torch.abs(all_preds - all_labels)).item()  # 平均绝对误差
         mse = torch.mean((all_preds - all_labels) ** 2).item()  # 均方误差
         rmse = torch.sqrt(torch.tensor(mse)).item()  # 均方根误差
@@ -657,7 +666,9 @@ def main():
 
         # 在验证集上评估
         val_metrics = (
-            evaluate(model, val_loader, device, args) if val_loader else {"loss": 0.0}
+            evaluate(model, val_loader, device, args, normalizer)
+            if val_loader
+            else {"loss": 0.0}
         )
 
         epoch_time = time.time() - start_time
@@ -732,7 +743,7 @@ def main():
     test_metrics = {}
     if test_loader:
         logger.info("在测试集上评估")
-        test_metrics = evaluate(model, test_loader, device, args)
+        test_metrics = evaluate(model, test_loader, device, args, normalizer)
         logger.info(f"测试结果:")
         for key, value in test_metrics.items():
             logger.info(f"  {key.upper()}: {value:.6f}")
