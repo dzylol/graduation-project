@@ -758,7 +758,6 @@ if __name__ == "__main__":
         logger.info("清理 DataLoader worker 进程...")
         import os
         import signal
-        # 终止所有当前进程的子进程
         try:
             import psutil
             parent = psutil.Process(os.getpid())
@@ -767,7 +766,6 @@ if __name__ == "__main__":
                 try:
                     logger.info(f"终止子进程: {child.pid}")
                     child.terminate()
-            # 等待子进程终止
             gone, alive = psutil.wait_procs(children, timeout=3)
             for p in alive:
                 try:
@@ -775,7 +773,6 @@ if __name__ == "__main__":
                 except psutil.NoSuchProcess:
                     pass
         except ImportError:
-            # 如果没有psutil，使用系统命令
             os.system("pkill -9 -f 'DataLoader worker' 2>/dev/null")
             os.system("pkill -9 -f '_worker.py' 2>/dev/null")
 
