@@ -381,11 +381,11 @@ def evaluate(
     # 禁用梯度计算（节省内存和计算）
     with torch.no_grad():
         for input_ids, labels in val_loader:
-            # 数据移到设备
             input_ids = input_ids.to(device)
             labels = labels.to(device)
+            if args.task_type == "classification":
+                labels = labels.float()
 
-            # 前向传播
             logits, loss = model(input_ids=input_ids, labels=labels)
 
             total_loss += loss.item()
