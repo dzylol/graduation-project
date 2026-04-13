@@ -116,6 +116,36 @@ def parse_args():
         "--test_file", type=str, default="test.csv", help="测试数据文件名"
     )
 
+    # 数据划分参数
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="random",
+        choices=["random", "scaffold"],
+        help="数据划分策略: random 或 scaffold (默认: random)",
+    )
+    parser.add_argument(
+        "--split_seed", type=int, default=42, help="数据划分随机种子 (默认: 42)"
+    )
+    parser.add_argument(
+        "--train_ratio",
+        type=float,
+        default=0.8,
+        help="训练集比例 (默认: 0.8)",
+    )
+    parser.add_argument(
+        "--val_ratio", type=float, default=0.1, help="验证集比例 (默认: 0.1)"
+    )
+    parser.add_argument(
+        "--test_ratio", type=float, default=0.1, help="测试集比例 (默认: 0.1)"
+    )
+    parser.add_argument(
+        "--single_file",
+        type=str,
+        default=None,
+        help="单数据文件路径（如 delaney.csv），与 train_file 互斥",
+    )
+
     # -------------------------------------------------------------------------
     # 模型参数
     # -------------------------------------------------------------------------
@@ -510,18 +540,63 @@ def main():
     val_path = os.path.join(args.data_dir, args.val_file) if args.val_file else None
     test_path = os.path.join(args.data_dir, args.test_file) if args.test_file else None
 
-    logger.info(f"从 {args.data_dir} 加载数据")
-    train_loader, val_loader, test_loader, normalizer = create_data_loaders(
-        train_path=train_path,
-        val_path=val_path,
-        test_path=test_path,
-        batch_size=args.batch_size,
-        task_type=args.task_type,
-        dataset_name=args.dataset,
-        max_length=args.max_length,
-        num_workers=args.num_workers,
-        normalize=(args.task_type == "regression"),
-    )
+    # 检查是否使用单文件+运行时划分
+    if args.single_file:
+        single_path = os.path.join(args.data_dir, args.single_file)
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            if args.split == "scaffold":
+                from src.data.molecule_dataset import scaffold_split_dataset
+
+                scaffold_split_dataset(
+                    single_path,
+                    output_dir=tmpdir,
+                    train_ratio=args.train_ratio,
+                    val_ratio=args.val_ratio,
+                    test_ratio=args.test_ratio,
+                    seed=args.split_seed,
+                )
+            else:
+                from src.data.molecule_dataset import random_split_dataset
+
+                random_split_dataset(
+                    single_path,
+                    output_dir=tmpdir,
+                    train_ratio=args.train_ratio,
+                    val_ratio=args.val_ratio,
+                    test_ratio=args.test_ratio,
+                    seed=args.split_seed,
+                )
+            train_path = os.path.join(tmpdir, "train.csv")
+            val_path = os.path.join(tmpdir, "val.csv")
+            test_path = os.path.join(tmpdir, "test.csv")
+
+            logger.info(f"从 {args.data_dir} 加载数据（单文件划分模式）")
+            train_loader, val_loader, test_loader, normalizer = create_data_loaders(
+                train_path=train_path,
+                val_path=val_path,
+                test_path=test_path,
+                batch_size=args.batch_size,
+                task_type=args.task_type,
+                dataset_name=args.dataset,
+                max_length=args.max_length,
+                num_workers=args.num_workers,
+                normalize=(args.task_type == "regression"),
+            )
+    else:
+        logger.info(f"从 {args.data_dir} 加载数据")
+        train_loader, val_loader, test_loader, normalizer = create_data_loaders(
+            train_path=train_path,
+            val_path=val_path,
+            test_path=test_path,
+            batch_size=args.batch_size,
+            task_type=args.task_type,
+            dataset_name=args.dataset,
+            max_length=args.max_length,
+            num_workers=args.num_workers,
+            normalize=(args.task_type == "regression"),
+        )
     if normalizer:
         logger.info(
             f"Z-score 归一化: mean={normalizer.mean:.4f}, std={normalizer.std:.4f}"

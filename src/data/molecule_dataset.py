@@ -809,6 +809,122 @@ def random_split_dataset(
     return train_df, val_df, test_df
 
 
+def scaffold_split_dataset(
+    input_csv: str,
+    output_dir: Optional[str] = None,
+    train_ratio: float = 0.8,
+    val_ratio: float = 0.1,
+    test_ratio: float = 0.1,
+    seed: Optional[int] = None,
+    smiles_col: str = "smiles",
+    label_col: Optional[str] = None,
+    n_jobs: Optional[int] = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Scaffold split CSV dataset into train/val/test based on molecular scaffolds.
+
+    Uses MurckoScaffold to group molecules by their scaffold structure.
+    This provides a more realistic evaluation by ensuring molecules with
+    similar scaffolds are in the same split.
+
+    Args:
+        input_csv: Input CSV file path
+        output_dir: Output directory (optional, saves files if specified)
+        train_ratio: Training set ratio (default 0.8)
+        val_ratio: Validation set ratio (default 0.1)
+        test_ratio: Test set ratio (default 0.1)
+        seed: Random seed (default None uses numpy default)
+        smiles_col: Column name for SMILES (default "smiles")
+        label_col: Column name for label (optional, for multi-task)
+        n_jobs: Number of threads for CSV reading.
+
+    Returns:
+        (train_df, val_df, test_df) tuple of DataFrames
+
+    Raises:
+        ValueError: If ratios don't sum to 1.0
+    """
+    from collections import defaultdict
+
+    if abs(train_ratio + val_ratio + test_ratio - 1.0) > 0.001:
+        raise ValueError(
+            f"Ratios must sum to 1.0, got {train_ratio + val_ratio + test_ratio}"
+        )
+
+    df = pd.read_csv(input_csv)
+
+    # Find SMILES column (handle different column names)
+    if smiles_col not in df.columns:
+        for col in ["smiles", "SMILES", "Smiles", "canonical_smiles"]:
+            if col in df.columns:
+                smiles_col = col
+                break
+        else:
+            raise ValueError(
+                f"SMILES column not found. Available: {df.columns.tolist()}"
+            )
+
+    def get_scaffold(smiles: str) -> str:
+        """Get Murcko scaffold from SMILES."""
+        try:
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                return "INVALID"
+            scaffold = Chem.Scaffolds.MurckoScaffold.MurckoScaffoldSmiles(mol=mol)
+            return scaffold if scaffold else "NO_SCAFFOLD"
+        except Exception:
+            return "ERROR"
+
+    # Compute scaffolds for all molecules
+    scaffolds = [get_scaffold(s) for s in df[smiles_col].tolist()]
+
+    # Group indices by scaffold
+    scaffold_to_indices = defaultdict(list)
+    for idx, scaffold in enumerate(scaffolds):
+        scaffold_to_indices[scaffold].append(idx)
+
+    # Sort scaffolds by size (larger first for deterministic ordering)
+    sorted_scaffolds = sorted(
+        scaffold_to_indices.keys(),
+        key=lambda x: len(scaffold_to_indices[x]),
+        reverse=True,
+    )
+
+    # Assign scaffolds to train/val/test
+    np.random.seed(seed)
+    train_indices = []
+    val_indices = []
+    test_indices = []
+    total = len(df)
+    train_target = int(total * train_ratio)
+    val_target = int(total * val_ratio)
+
+    for scaffold in sorted_scaffolds:
+        indices = scaffold_to_indices[scaffold]
+        if len(train_indices) < train_target:
+            train_indices.extend(indices)
+        elif len(val_indices) < val_target:
+            val_indices.extend(indices)
+        else:
+            test_indices.extend(indices)
+
+    # Shuffle within each split
+    np.random.shuffle(train_indices)
+    np.random.shuffle(val_indices)
+    np.random.shuffle(test_indices)
+
+    train_df = df.iloc[train_indices].reset_index(drop=True)
+    val_df = df.iloc[val_indices].reset_index(drop=True)
+    test_df = df.iloc[test_indices].reset_index(drop=True)
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        train_df.to_csv(os.path.join(output_dir, "train.csv"), index=False)
+        val_df.to_csv(os.path.join(output_dir, "val.csv"), index=False)
+        test_df.to_csv(os.path.join(output_dir, "test.csv"), index=False)
+
+    return train_df, val_df, test_df
+
+
 def list_available_databases(
     database_dir: str = "src/data/database",
 ) -> list[str]:
