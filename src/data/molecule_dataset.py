@@ -937,20 +937,30 @@ def scaffold_split_dataset(
         reverse=True,
     )
 
-    # Assign scaffolds to train/val/test
+    # Assign scaffolds to train/val/test using stratified approach
     np.random.seed(seed)
-    train_indices = []
-    val_indices = []
-    test_indices = []
+    all_scaffold_indices = [
+        (scaffold, scaffold_to_indices[scaffold]) for scaffold in sorted_scaffolds
+    ]
+    np.random.shuffle(all_scaffold_indices)
+
     total = len(df)
     train_target = int(total * train_ratio)
     val_target = int(total * val_ratio)
 
-    for scaffold in sorted_scaffolds:
-        indices = scaffold_to_indices[scaffold]
-        if len(train_indices) < train_target:
+    train_indices = []
+    val_indices = []
+    test_indices = []
+
+    for scaffold, indices in all_scaffold_indices:
+        # Determine target split based on current sizes
+        train_size = len(train_indices)
+        val_size = len(val_indices)
+        test_size = len(test_indices)
+
+        if train_size < train_target:
             train_indices.extend(indices)
-        elif len(val_indices) < val_target:
+        elif val_size < val_target:
             val_indices.extend(indices)
         else:
             test_indices.extend(indices)
