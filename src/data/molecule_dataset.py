@@ -937,33 +937,42 @@ def scaffold_split_dataset(
         reverse=True,
     )
 
-    # Assign scaffolds to train/val/test using stratified approach
+    # Balanced scaffold assignment: iteratively assign each scaffold to the
+    # split furthest below its target proportion
     np.random.seed(seed)
-    all_scaffold_indices = [
-        (scaffold, scaffold_to_indices[scaffold]) for scaffold in sorted_scaffolds
-    ]
-    np.random.shuffle(all_scaffold_indices)
+    all_scaffolds = [(s, scaffold_to_indices[s]) for s in sorted_scaffolds]
+    np.random.shuffle(all_scaffolds)
 
     total = len(df)
     train_target = int(total * train_ratio)
     val_target = int(total * val_ratio)
+    test_target = total - train_target - val_target
 
     train_indices = []
     val_indices = []
     test_indices = []
 
-    for scaffold, indices in all_scaffold_indices:
-        # Determine target split based on current sizes
-        train_size = len(train_indices)
-        val_size = len(val_indices)
-        test_size = len(test_indices)
+    train_sizes = []
+    val_sizes = []
+    test_sizes = []
 
-        if train_size < train_target:
-            train_indices.extend(indices)
-        elif val_size < val_target:
-            val_indices.extend(indices)
-        else:
+    for scaff_idx, (scaffold, indices) in enumerate(all_scaffolds):
+        sizes = [len(train_indices), len(val_indices), len(test_indices)]
+        targets = [train_target, val_target, test_target]
+        deficits = [t - s for t, s in zip(targets, sizes)]
+        deficit_sum = sum(max(0, d) for d in deficits)
+
+        if deficit_sum == 0:
             test_indices.extend(indices)
+        else:
+            probs = [max(0, d) / deficit_sum for d in deficits]
+            r = np.random.random()
+            if r < probs[0]:
+                train_indices.extend(indices)
+            elif r < probs[0] + probs[1]:
+                val_indices.extend(indices)
+            else:
+                test_indices.extend(indices)
 
     # Shuffle within each split
     np.random.shuffle(train_indices)
