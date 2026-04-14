@@ -937,7 +937,7 @@ def scaffold_split_dataset(
         reverse=True,
     )
 
-    # Assign each scaffold to the split with the most available space
+    # Assign each scaffold to the split with largest proportional deficit
     np.random.seed(seed)
     all_scaffolds = [(s, scaffold_to_indices[s]) for s in sorted_scaffolds]
     np.random.shuffle(all_scaffolds)
@@ -945,27 +945,28 @@ def scaffold_split_dataset(
     total = len(df)
     train_target = int(total * train_ratio)
     val_target = int(total * val_ratio)
+    test_target = total - train_target - val_target
 
     train_indices = []
     val_indices = []
     test_indices = []
 
-    train_count = 0
-    val_count = 0
-    test_count = 0
+    train_count = 0.0
+    val_count = 0.0
+    test_count = 0.0
 
     for scaffold, indices in all_scaffolds:
         n = len(indices)
-        # Determine which split has the most room
-        train_room = train_target - train_count
-        val_room = val_target - val_count
-        test_room = (total - train_target - val_target) - test_count
+        # Compute proportional deficit for each split
+        train_deficit = max(0, train_target - train_count) / train_target
+        val_deficit = max(0, val_target - val_count) / val_target
+        test_deficit = max(0, test_target - test_count) / test_target
 
-        max_room = max(train_room, val_room, test_room)
-        if max_room == train_room and train_count < train_target:
+        max_deficit = max(train_deficit, val_deficit, test_deficit)
+        if max_deficit == train_deficit and train_count < train_target:
             train_indices.extend(indices)
             train_count += n
-        elif max_room == val_room and val_count < val_target:
+        elif max_deficit == val_deficit and val_count < val_target:
             val_indices.extend(indices)
             val_count += n
         else:
