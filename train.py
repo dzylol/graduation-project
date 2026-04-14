@@ -51,12 +51,15 @@ from src.models.bimamba_with_mamba_ssm import (
 from src.models.bimamba_with_mamba_ssm import (
     create_bimamba_model as create_bimamba_mamba_ssm,
 )
-from src.data.molecule_dataset import (
+from src.data import (
     MoleculeDataset,
     create_data_loaders,
     MoleculeTokenizer,
-    select_database,
 )
+from src.data.split import scaffold_split_dataset, random_split_dataset
+from src.data.column_mapping import detect_column_mapping
+from src.data.split import select_database
+from src.shared.utils import parse_train_args
 
 # ============================================================================
 # 日志配置
@@ -72,185 +75,6 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger(__name__)  # 获取日志记录器
-
-
-# ============================================================================
-# 命令行参数解析
-# ============================================================================
-
-
-def parse_args():
-    """
-    解析命令行参数
-
-    使用 argparse 模块解析命令行参数，方便调整训练配置。
-
-    参数说明：
-    - 数据参数：数据集路径、文件名称
-    - 模型参数：维度、层数、任务类型等
-    - 训练参数：轮数、批大小、学习率等
-    - 其他：设备、随机种子、输出路径等
-    """
-    parser = argparse.ArgumentParser(description="训练 BiMamba 分子性质预测模型")
-
-    # -------------------------------------------------------------------------
-    # 数据参数
-    # -------------------------------------------------------------------------
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        required=True,
-        help="数据集名称（如 ESOL, BBBP, ClinTox）",
-    )
-    parser.add_argument(
-        "--data_dir",
-        type=str,
-        default="./data",
-        help="数据文件目录",
-    )
-    parser.add_argument(
-        "--train_file", type=str, default="train.csv", help="训练数据文件名"
-    )
-    parser.add_argument(
-        "--val_file", type=str, default="val.csv", help="验证数据文件名"
-    )
-    parser.add_argument(
-        "--test_file", type=str, default="test.csv", help="测试数据文件名"
-    )
-
-    # 数据划分参数
-    parser.add_argument(
-        "--split",
-        type=str,
-        default="random",
-        choices=["random", "scaffold"],
-        help="数据划分策略: random 或 scaffold (默认: random)",
-    )
-    parser.add_argument(
-        "--split_seed", type=int, default=42, help="数据划分随机种子 (默认: 42)"
-    )
-    parser.add_argument(
-        "--train_ratio",
-        type=float,
-        default=0.8,
-        help="训练集比例 (默认: 0.8)",
-    )
-    parser.add_argument(
-        "--val_ratio", type=float, default=0.1, help="验证集比例 (默认: 0.1)"
-    )
-    parser.add_argument(
-        "--test_ratio", type=float, default=0.1, help="测试集比例 (默认: 0.1)"
-    )
-    parser.add_argument(
-        "--single_file",
-        type=str,
-        default=None,
-        help="单数据文件路径（如 delaney.csv），与 train_file 互斥",
-    )
-
-    # -------------------------------------------------------------------------
-    # 模型参数
-    # -------------------------------------------------------------------------
-    parser.add_argument(
-        "--model_type",
-        type=str,
-        default="manual",
-        choices=["manual", "mamba_ssm"],
-        help="模型类型: manual (无外部依赖) 或 mamba_ssm (需要 mamba-ssm 包)",
-    )
-    parser.add_argument(
-        "--d_model", type=int, default=256, help="模型维度 (embedding/输出维度)"
-    )
-    parser.add_argument(
-        "--d_mamba", type=int, default=256, help="Mamba 内部维度 (必须是 256 倍数)"
-    )
-    parser.add_argument("--n_layers", type=int, default=4, help="BiMamba 层数")
-    parser.add_argument(
-        "--task_type",
-        type=str,
-        default="regression",
-        choices=["regression", "classification"],
-        help="任务类型：regression（回归）或 classification（分类）",
-    )
-    parser.add_argument(
-        "--pooling",
-        type=str,
-        default="mean",
-        choices=["mean", "max", "cls"],
-        help="池化方法：mean（平均池化）、max（最大池化）、cls（CLS token）",
-    )
-    parser.add_argument("--num_labels", type=int, default=1, help="输出标签数量")
-    parser.add_argument("--dropout", type=float, default=0.1, help="Dropout 比率")
-
-    # -------------------------------------------------------------------------
-    # 训练参数
-    # -------------------------------------------------------------------------
-    parser.add_argument("--epochs", type=int, default=10, help="训练轮数")
-    parser.add_argument("--batch_size", type=int, default=32, help="批大小")
-    parser.add_argument("--learning_rate", type=float, default=1e-4, help="学习率")
-    parser.add_argument("--weight_decay", type=float, default=1e-5, help="权重衰减")
-    parser.add_argument(
-        "--gradient_accumulation_steps",
-        type=int,
-        default=1,
-        help="梯度累积步数（用于增大有效批大小）",
-    )
-    parser.add_argument("--warmup_epochs", type=int, default=5, help="学习率预热轮数")
-    parser.add_argument(
-        "--max_grad_norm",
-        type=float,
-        default=1.0,
-        help="梯度裁剪的最大范数",
-    )
-
-    # -------------------------------------------------------------------------
-    # 其他参数
-    # -------------------------------------------------------------------------
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="auto",
-        help="设备：cuda（GPU）、mps（Apple GPU）、cpu 或 auto（自动选择）",
-    )
-    parser.add_argument("--seed", type=int, default=42, help="随机种子（保证可重复性）")
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="./checkpoints",
-        help="模型保存目录",
-    )
-    parser.add_argument(
-        "--log_interval", type=int, default=100, help="日志输出间隔（批次）"
-    )
-    parser.add_argument(
-        "--eval_interval", type=int, default=500, help="评估间隔（批次）"
-    )
-    parser.add_argument(
-        "--save_interval", type=int, default=1000, help="保存检查点间隔（批次）"
-    )
-    parser.add_argument("--max_length", type=int, default=512, help="最大序列长度")
-    parser.add_argument(
-        "--num_workers", type=int, default=8, help="DataLoader worker 进程数"
-    )
-    parser.add_argument(
-        "--db_path",
-        type=str,
-        default="interactive",
-        help="数据库路径（默认 interactive 会让用户选择）",
-    )
-    parser.add_argument(
-        "--exp_name",
-        type=str,
-        default=None,
-        help="实验名称（默认为 {dataset}_{timestamp}）",
-    )
-    parser.add_argument(
-        "--no_db",
-        action="store_true",
-        help="禁用数据库记录",
-    )
-
-    return parser.parse_args()
 
 
 # ============================================================================
@@ -513,7 +337,7 @@ def main():
     # -------------------------------------------------------------------------
     # 1. 解析参数
     # -------------------------------------------------------------------------
-    args = parse_args()
+    args = parse_train_args()
 
     # -------------------------------------------------------------------------
     # 2. 设置随机种子
@@ -557,8 +381,6 @@ def main():
 
         try:
             if args.split == "scaffold":
-                from src.data.molecule_dataset import scaffold_split_dataset
-
                 scaffold_split_dataset(
                     single_path,
                     output_dir=tmpdir,
@@ -568,8 +390,6 @@ def main():
                     seed=args.split_seed,
                 )
             else:
-                from src.data.molecule_dataset import random_split_dataset
-
                 random_split_dataset(
                     single_path,
                     output_dir=tmpdir,
@@ -611,14 +431,10 @@ def main():
             normalize=(args.task_type == "regression"),
         )
     if normalizer:
-        logger.info(
-            f"Z-score 归一化: mean={normalizer.mean:.4f}, std={normalizer.std:.4f}"
-        )
+        logger.info(f"Z-score 归一化: mean={normalizer.mean:.4f}, std={normalizer.std:.4f}")
 
     # 从数据集获取词汇表信息
-    dataset_for_vocab = (
-        train_loader.dataset.base_dataset if normalizer else train_loader.dataset
-    )
+    dataset_for_vocab = train_loader.dataset.base_dataset if normalizer else train_loader.dataset
     vocab_size = dataset_for_vocab.get_vocab_size()
     pad_token_id = dataset_for_vocab.get_pad_token_id()
     logger.info(f"词汇表大小: {vocab_size}")
@@ -713,9 +529,7 @@ def main():
 
     # 学习率调度器（带预热）
     total_steps = len(train_loader) * args.epochs // args.gradient_accumulation_steps
-    warmup_steps = (
-        len(train_loader) * args.warmup_epochs // args.gradient_accumulation_steps
-    )
+    warmup_steps = len(train_loader) * args.warmup_epochs // args.gradient_accumulation_steps
 
     def lr_lambda(current_step):
         """
@@ -731,8 +545,7 @@ def main():
             # 衰减阶段：线性减少
             return max(
                 0.0,
-                float(total_steps - current_step)
-                / float(max(1, total_steps - warmup_steps)),
+                float(total_steps - current_step) / float(max(1, total_steps - warmup_steps)),
             )
 
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
@@ -754,9 +567,7 @@ def main():
 
         # 在验证集上评估
         val_metrics = (
-            evaluate(model, val_loader, device, args, normalizer)
-            if val_loader
-            else {"loss": 0.0}
+            evaluate(model, val_loader, device, args, normalizer) if val_loader else {"loss": 0.0}
         )
 
         epoch_time = time.time() - start_time

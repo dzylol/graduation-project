@@ -151,14 +151,9 @@ special_token_tuple: tuple[str, ...] = (
 
 
 def build_default_vocab() -> Dict[str, int]:
-    vocab: Dict[str, int] = {
-        token: idx for idx, token in enumerate(special_token_tuple)
-    }
+    vocab: Dict[str, int] = {token: idx for idx, token in enumerate(special_token_tuple)}
     vocab.update(
-        {
-            char: idx + len(special_token_tuple)
-            for idx, char in enumerate(smiles_token_tuple)
-        }
+        {char: idx + len(special_token_tuple) for idx, char in enumerate(smiles_token_tuple)}
     )
     return vocab
 
@@ -225,9 +220,7 @@ class ColumnMapping:
     confidence: float = 1.0
 
 
-def detect_column_mapping(
-    df: pd.DataFrame, dataset_name: Optional[str] = None
-) -> ColumnMapping:
+def detect_column_mapping(df: pd.DataFrame, dataset_name: Optional[str] = None) -> ColumnMapping:
     """Auto-detect CSV column mapping (smiles_col + label_cols).
 
     Detection order:
@@ -265,9 +258,7 @@ def detect_column_mapping(
         col_lower = col.strip().lower()
         if col_lower in SMILES_COLUMNS:
             label_cols = [
-                c
-                for c in df.columns
-                if c != col and pd.api.types.is_numeric_dtype(df[c])
+                c for c in df.columns if c != col and pd.api.types.is_numeric_dtype(df[c])
             ]
             return ColumnMapping(
                 smiles_col=col,
@@ -283,9 +274,7 @@ def detect_column_mapping(
             valid_count = sum(validate_smiles_internal(s) for s in sample)
             if valid_count >= 16:  # >80%
                 label_cols = [
-                    c
-                    for c in df.columns
-                    if c != col and pd.api.types.is_numeric_dtype(df[c])
+                    c for c in df.columns if c != col and pd.api.types.is_numeric_dtype(df[c])
                 ]
                 return ColumnMapping(
                     smiles_col=col,
@@ -305,9 +294,7 @@ def detect_column_mapping(
             confidence=0.5,
         )
 
-    raise ValueError(
-        f"Cannot detect column mapping. DataFrame columns: {df.columns.tolist()}"
-    )
+    raise ValueError(f"Cannot detect column mapping. DataFrame columns: {df.columns.tolist()}")
 
 
 @dataclass
@@ -327,9 +314,7 @@ class MoleculeTokenizer:
             self.vocab: Dict[str, int] = default_vocab
         else:
             self.vocab = given_vocab_dict
-        self.inverse_vocab: Dict[int, str] = {
-            idx: token for token, idx in self.vocab.items()
-        }
+        self.inverse_vocab: Dict[int, str] = {idx: token for token, idx in self.vocab.items()}
         self.vocab_size: int = len(self.vocab)
 
     def encode(self, smiles: str, max_length: int = 512) -> Tuple[int, ...]:
@@ -345,17 +330,13 @@ class MoleculeTokenizer:
 
 
 @functools.lru_cache(maxsize=500000)
-def tokenize_smiles_cached_internal(
-    smiles: str, vocab_id: int, max_length: int
-) -> Tuple[int, ...]:
+def tokenize_smiles_cached_internal(smiles: str, vocab_id: int, max_length: int) -> Tuple[int, ...]:
     """Tokenize SMILES string with caching.
 
     Note: vocab_id is passed to make cache key unique per vocab.
     Returns Tuple for hashability (required by lru_cache).
     """
-    given_vocab_dict: Dict[str, int] = (
-        default_vocab if vocab_id == id(default_vocab) else {}
-    )
+    given_vocab_dict: Dict[str, int] = default_vocab if vocab_id == id(default_vocab) else {}
     tokens: List[int] = []
     i: int = 0
     while i < len(smiles):
@@ -431,9 +412,7 @@ class MoleculeDataset(Dataset):
     def load_json_internal(self, path: str) -> List[Data]:
         with open(path, "r") as file:
             json_raw_data = json.load(file)
-        return [
-            Data(smiles=item["smiles"], labels=item["labels"]) for item in json_raw_data
-        ]
+        return [Data(smiles=item["smiles"], labels=item["labels"]) for item in json_raw_data]
 
     def load_txt_internal(self, path: str) -> List[Data]:
         data: List[Data] = []
@@ -443,9 +422,7 @@ class MoleculeDataset(Dataset):
                 data.append(
                     Data(
                         smiles=parts[0],
-                        labels=[float(x) for x in parts[1:]]
-                        if len(parts) >= 2
-                        else [0.0],
+                        labels=[float(x) for x in parts[1:]] if len(parts) >= 2 else [0.0],
                     )
                 )
         return data
@@ -624,9 +601,7 @@ def create_data_loaders(
             if label_col_from_meta:
                 label_cols = [label_col_from_meta]
 
-    def make_file_loader(
-        path: str, is_train: bool = False
-    ) -> torch.utils.data.DataLoader:
+    def make_file_loader(path: str, is_train: bool = False) -> torch.utils.data.DataLoader:
         dataset = MoleculeDataset(
             data_file_path=path,
             task_type=task_type,
@@ -645,9 +620,7 @@ def create_data_loaders(
         )
         return torch.utils.data.DataLoader(dataset, **loader_kwargs)
 
-    def make_db_loader(
-        dataset_name: str, is_train: bool = False
-    ) -> torch.utils.data.DataLoader:
+    def make_db_loader(dataset_name: str, is_train: bool = False) -> torch.utils.data.DataLoader:
         dataset = DatabaseMoleculeDataset(
             dataset_name=dataset_name,
             db_path=db_path,
@@ -668,9 +641,7 @@ def create_data_loaders(
     if train_dataset_name:
         train_loader = make_db_loader(train_dataset_name, is_train=True)
     else:
-        assert train_path is not None, (
-            "train_path required when train_dataset_name not provided"
-        )
+        assert train_path is not None, "train_path required when train_dataset_name not provided"
         train_loader = make_file_loader(train_path, is_train=True)
 
     if normalize and task_type == "regression":
@@ -796,9 +767,7 @@ def random_split_dataset(
         ValueError: If ratios don't sum to 1.0
     """
     if abs(train_ratio + val_ratio + test_ratio - 1.0) > 0.001:
-        raise ValueError(
-            f"Ratios must sum to 1.0, got {train_ratio + val_ratio + test_ratio}"
-        )
+        raise ValueError(f"Ratios must sum to 1.0, got {train_ratio + val_ratio + test_ratio}")
 
     if n_jobs is None:
         n_jobs = os.cpu_count() or 4
@@ -894,9 +863,7 @@ def scaffold_split_dataset(
     from collections import defaultdict
 
     if abs(train_ratio + val_ratio + test_ratio - 1.0) > 0.001:
-        raise ValueError(
-            f"Ratios must sum to 1.0, got {train_ratio + val_ratio + test_ratio}"
-        )
+        raise ValueError(f"Ratios must sum to 1.0, got {train_ratio + val_ratio + test_ratio}")
 
     df = pd.read_csv(input_csv)
 
@@ -907,9 +874,7 @@ def scaffold_split_dataset(
                 smiles_col = col
                 break
         else:
-            raise ValueError(
-                f"SMILES column not found. Available: {df.columns.tolist()}"
-            )
+            raise ValueError(f"SMILES column not found. Available: {df.columns.tolist()}")
 
     def get_scaffold(smiles: str) -> str:
         """Get Murcko scaffold from SMILES."""
@@ -982,9 +947,7 @@ def scaffold_split_dataset(
     # Auto-detect label column if not specified
     if label_col is None:
         numeric_cols = [
-            c
-            for c in df.columns
-            if c != smiles_col and pd.api.types.is_numeric_dtype(df[c])
+            c for c in df.columns if c != smiles_col and pd.api.types.is_numeric_dtype(df[c])
         ]
         if len(numeric_cols) == 1:
             label_col = numeric_cols[0]
@@ -1000,9 +963,7 @@ def scaffold_split_dataset(
                     label_col = col
                     break
             if label_col is None:
-                raise ValueError(
-                    f"Could not auto-detect label column. Found: {numeric_cols}"
-                )
+                raise ValueError(f"Could not auto-detect label column. Found: {numeric_cols}")
 
     cols_to_keep = [smiles_col, label_col]
     train_df = df.iloc[train_indices][cols_to_keep].reset_index(drop=True)
@@ -1020,60 +981,3 @@ def scaffold_split_dataset(
             json.dump(meta, f)
 
     return train_df, val_df, test_df
-
-
-def list_available_databases(
-    database_dir: str = "src/data/database",
-) -> list[str]:
-    """List all available database files in directory.
-
-    Args:
-        database_dir: Path to database directory
-
-    Returns:
-        List of database file paths
-    """
-    if not os.path.exists(database_dir):
-        return []
-    return sorted(
-        [
-            os.path.join(database_dir, f)
-            for f in os.listdir(database_dir)
-            if f.endswith(".db")
-        ]
-    )
-
-
-def select_database(
-    database_dir: str = "src/data/database",
-) -> str:
-    """Interactively select a database file.
-
-    Args:
-        database_dir: Path to database directory
-
-    Returns:
-        Selected database file path
-
-    Raises:
-        FileNotFoundError: No database files found
-    """
-    db_files = list_available_databases(database_dir)
-
-    if not db_files:
-        raise FileNotFoundError(
-            f"Database directory empty or not found: {database_dir}"
-        )
-
-    print("Available databases:")
-    for i, db_path in enumerate(db_files, 1):
-        print(f"  [{i}] {os.path.basename(db_path)}")
-
-    while True:
-        try:
-            choice = int(input("\nSelect database number: "))
-            if 1 <= choice <= len(db_files):
-                return db_files[choice - 1]
-            print(f"Invalid choice, enter 1-{len(db_files)}")
-        except ValueError:
-            print("Enter a valid number")

@@ -27,7 +27,7 @@ import csv  # CSV 文件处理
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 # 导入待测试的模块
-from data.molecule_dataset import (
+from data import (
     MoleculeDataset,
     MoleculeTokenizer,
     create_data_loaders,
@@ -119,9 +119,7 @@ def test_dataset():
         # -------------------------------------------------------------------------
         print("\n[步骤 2] 创建数据集")
 
-        dataset = MoleculeDataset(
-            data_path=temp_file, task_type="regression", max_length=50
-        )
+        dataset = MoleculeDataset(data_file_path=temp_file, task_type="regression", max_length=50)
 
         print(f"  数据集大小: {len(dataset)}")
         assert len(dataset) == 3
@@ -214,7 +212,7 @@ def test_data_loaders():
         # -------------------------------------------------------------------------
         print("\n[步骤 2] 创建数据加载器")
 
-        train_loader, val_loader, test_loader = create_data_loaders(
+        train_loader, val_loader, test_loader, normalizer = create_data_loaders(
             train_path=train_file,
             val_path=val_file,
             test_path=test_file,
