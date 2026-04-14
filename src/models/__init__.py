@@ -1,5 +1,5 @@
 """Bi-Mamba model components for molecular property prediction."""
 
-from src.models.bimamba import BiMambaForPropertyPrediction
+from .bimamba import BiMambaForPropertyPrediction
 
 __all__ = ["BiMambaForPropertyPrediction"]
