@@ -726,7 +726,19 @@ def main():
         exp_repo.complete(exp_id, final_metrics, best_epoch=epoch + 1)
         logger.info(f"更新实验记录: ID={exp_id}, 状态=completed")
 
+    # Finalize and save experiment data to JSON
+    experiment_data["training_results"]["best_val_loss"] = best_val_loss
+    experiment_data["training_results"]["epochs_trained"] = epoch + 1
+    experiment_data["training_results"]["test_loss"] = test_metrics.get("loss", 0)
+    experiment_data["training_results"]["test_mae"] = test_metrics.get("mae", 0)
+    experiment_data["training_results"]["test_mse"] = test_metrics.get("mse", 0)
+    experiment_data["training_results"]["test_rmse"] = test_metrics.get("rmse", 0)
+    experiment_data["training_results"]["test_rmse_orig"] = test_metrics.get("rmse_orig", 0)
+    experiment_data["training_results"]["test_mae_orig"] = test_metrics.get("mae_orig", 0)
+    
+    log_experiment_to_json(experiment_data, log_filepath)
     logger.info("训练完成！")
+    logger.info(f"实验日志已保存到 {log_filepath}")
 
 
 # ============================================================================
