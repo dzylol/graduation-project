@@ -937,8 +937,7 @@ def scaffold_split_dataset(
         reverse=True,
     )
 
-    # Balanced scaffold assignment: iteratively assign each scaffold to the
-    # split furthest below its target proportion
+    # Assign each scaffold to the split with the most available space
     np.random.seed(seed)
     all_scaffolds = [(s, scaffold_to_indices[s]) for s in sorted_scaffolds]
     np.random.shuffle(all_scaffolds)
@@ -946,33 +945,32 @@ def scaffold_split_dataset(
     total = len(df)
     train_target = int(total * train_ratio)
     val_target = int(total * val_ratio)
-    test_target = total - train_target - val_target
 
     train_indices = []
     val_indices = []
     test_indices = []
 
-    train_sizes = []
-    val_sizes = []
-    test_sizes = []
+    train_count = 0
+    val_count = 0
+    test_count = 0
 
-    for scaff_idx, (scaffold, indices) in enumerate(all_scaffolds):
-        sizes = [len(train_indices), len(val_indices), len(test_indices)]
-        targets = [train_target, val_target, test_target]
-        deficits = [t - s for t, s in zip(targets, sizes)]
-        deficit_sum = sum(max(0, d) for d in deficits)
+    for scaffold, indices in all_scaffolds:
+        n = len(indices)
+        # Determine which split has the most room
+        train_room = train_target - train_count
+        val_room = val_target - val_count
+        test_room = (total - train_target - val_target) - test_count
 
-        if deficit_sum == 0:
-            test_indices.extend(indices)
+        max_room = max(train_room, val_room, test_room)
+        if max_room == train_room and train_count < train_target:
+            train_indices.extend(indices)
+            train_count += n
+        elif max_room == val_room and val_count < val_target:
+            val_indices.extend(indices)
+            val_count += n
         else:
-            probs = [max(0, d) / deficit_sum for d in deficits]
-            r = np.random.random()
-            if r < probs[0]:
-                train_indices.extend(indices)
-            elif r < probs[0] + probs[1]:
-                val_indices.extend(indices)
-            else:
-                test_indices.extend(indices)
+            test_indices.extend(indices)
+            test_count += n
 
     # Shuffle within each split
     np.random.shuffle(train_indices)
