@@ -326,8 +326,18 @@ def evaluate(
 
 
 def log_experiment_to_json(experiment_data, filepath):
+    def convert_to_native(obj):
+        if isinstance(obj, dict):
+            return {k: convert_to_native(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_to_native(i) for i in obj]
+        elif hasattr(obj, 'item'):  # numpy types
+            return obj.item()
+        elif hasattr(obj, '__float__') and not isinstance(obj, (int, float, str, bool, type(None))):
+            return float(obj)
+        return obj
     with open(filepath, 'w') as f:
-        json.dump(experiment_data, f, indent=2)
+        json.dump(convert_to_native(experiment_data), f, indent=2)
 
 def main():
     """
