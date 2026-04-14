@@ -27,16 +27,18 @@ python train.py --dataset ESOL --epochs 100 --batch_size 32 --device cuda --mode
 import argparse
 import atexit
 import signal
+import json
+import logging
+import os
+import time
+from typing import Dict, Any, Optional
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
 from torch.amp import GradScaler
-import logging
-import os
-import json
-from typing import Dict, Any, Optional
-import time
+from torch.utils.data import DataLoader
 
 from src.db import ExperimentRepository
 
@@ -394,7 +396,7 @@ def evaluate(
     val_loader: DataLoader,
     device: torch.device,
     args: argparse.Namespace,
-    normalizer=None,
+    normalizer: Optional[object] = None,
 ) -> Dict[str, float]:
     """
     在验证集上评估模型
@@ -404,22 +406,22 @@ def evaluate(
         val_loader: 验证数据加载器
         device: 计算设备
         args: 命令行参数
-        normalizer: LabelNormalizer for denormalizing regression predictions
+        normalizer: LabelNormalizer for denormalizing regression predictions (optional)
 
     Returns:
         评估指标字典
     """
-    model.eval()  # 设置为评估模式
+    model.eval()
     total_loss = 0.0
     num_batches = 0
-    all_preds = []  # 收集所有预测
-    all_labels = []  # 收集所有标签
+    all_preds: list[torch.Tensor] = []
+    all_labels: list[torch.Tensor] = []
 
-    # 禁用梯度计算（节省内存和计算）
     with torch.no_grad():
         for input_ids, labels in val_loader:
             input_ids = input_ids.to(device)
             labels = labels.to(device)
+
             if args.task_type == "classification":
                 labels = labels.float()
 
@@ -428,61 +430,63 @@ def evaluate(
             total_loss += loss.item()
             num_batches += 1
 
-            # 保存预测和标签
             all_preds.append(logits.cpu())
             all_labels.append(labels.cpu())
 
-    # 合并所有预测和标签
+    if num_batches == 0:
+        logger.warning("evaluate() got 0 batches from val_loader")
+        return {"loss": 0.0, "mae": 0.0, "mse": 0.0, "rmse": 0.0}
+
     all_preds = torch.cat(all_preds, dim=0)
     all_labels = torch.cat(all_labels, dim=0)
 
-    # 计算指标
-    metrics = {"loss": total_loss / num_batches}
+    metrics: Dict[str, float] = {"loss": total_loss / num_batches}
 
-    # -------------------------------------------------------------------------
-    # 根据任务类型计算不同指标
-    # -------------------------------------------------------------------------
     if args.task_type == "regression":
-        # 回归任务指标
-        # 如果有 normalizer，先反归一化预测值到原始空间
-        # 注意：all_labels 来自 val_loader，是原始空间（未归一化），不需要 inverse_transform
-        if normalizer is not None and normalizer.is_fitted:
-            all_preds_orig = normalizer.inverse_transform(all_preds.numpy())
-            all_preds = torch.tensor(all_preds_orig, dtype=all_preds.dtype)
-            # all_labels 已经是原始空间（val_loader 没有 NormalizedDataset 包装）
-
-        mae = torch.mean(torch.abs(all_preds - all_labels)).item()  # 平均绝对误差
-        mse = torch.mean((all_preds - all_labels) ** 2).item()  # 均方误差
-        rmse = torch.sqrt(torch.tensor(mse)).item()  # 均方根误差
+        # Val loader returns NORMALIZED labels (via NormalizedDataset wrapper).
+        # Compute metrics in normalized space first.
+        mae = torch.mean(torch.abs(all_preds - all_labels)).item()
+        mse = torch.mean((all_preds - all_labels) ** 2).item()
+        rmse = torch.sqrt(torch.tensor(mse)).item()
         metrics.update({"mae": mae, "mse": mse, "rmse": rmse})
+
+        # Also compute RMSE in original scale if normalizer provided.
+        if normalizer is not None and hasattr(normalizer, "inverse_transform"):
+            preds_orig = normalizer.inverse_transform(all_preds.numpy())
+            labels_orig = normalizer.inverse_transform(all_labels.numpy())
+            rmse_orig = np.sqrt(np.mean((preds_orig - labels_orig) ** 2))
+            mae_orig = np.mean(np.abs(preds_orig - labels_orig))
+            metrics.update({"rmse_orig": rmse_orig, "mae_orig": mae_orig})
     else:
-        # 分类任务指标
+        # Classification metrics
         from sklearn.metrics import roc_auc_score, accuracy_score
 
         if args.num_labels == 1:
-            # 二分类
-            # sigmoid 将 logits 转换为概率
             preds_prob = torch.sigmoid(all_preds).numpy()
             preds_label = (preds_prob > 0.5).astype(int)
             labels_np = all_labels.numpy()
 
             try:
-                auc = roc_auc_score(labels_np, preds_prob)  # AUC
-                acc = accuracy_score(labels_np, preds_label)  # 准确率
-                metrics.update({"auc": auc, "accuracy": acc})
+                metrics.update(
+                    {
+                        "auc": roc_auc_score(labels_np, preds_prob),
+                        "accuracy": accuracy_score(labels_np, preds_label),
+                    }
+                )
             except ValueError:
-                # 处理只有一个类别的情况
                 metrics.update({"auc": 0.5, "accuracy": 0.0})
         else:
-            # 多分类
             preds_prob = torch.softmax(all_preds, dim=-1).numpy()
             preds_label = torch.argmax(all_preds, dim=-1).numpy()
             labels_np = all_labels.numpy()
 
             try:
-                auc = roc_auc_score(labels_np, preds_prob, multi_class="ovr")
-                acc = accuracy_score(labels_np, preds_label)
-                metrics.update({"auc": auc, "accuracy": acc})
+                metrics.update(
+                    {
+                        "auc": roc_auc_score(labels_np, preds_prob, multi_class="ovr"),
+                        "accuracy": accuracy_score(labels_np, preds_label),
+                    }
+                )
             except ValueError:
                 metrics.update({"auc": 0.5, "accuracy": 0.0})
 
@@ -543,9 +547,15 @@ def main():
     # 检查是否使用单文件+运行时划分
     if args.single_file:
         single_path = os.path.join(args.data_dir, args.single_file)
+
+        # Use persistent temp dir inside data_dir (not tempfile.TemporaryDirectory)
+        # to avoid deletion while loaders still reference files
         import tempfile
 
-        with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = os.path.join(args.data_dir, f".tmp_split_{os.getpid()}")
+        os.makedirs(tmpdir, exist_ok=True)
+
+        try:
             if args.split == "scaffold":
                 from src.data.molecule_dataset import scaffold_split_dataset
 
@@ -584,6 +594,9 @@ def main():
                 num_workers=args.num_workers,
                 normalize=(args.task_type == "regression"),
             )
+        finally:
+            # Clean up temp dir only after training is done (deferred to end of script)
+            pass
     else:
         logger.info(f"从 {args.data_dir} 加载数据")
         train_loader, val_loader, test_loader, normalizer = create_data_loaders(

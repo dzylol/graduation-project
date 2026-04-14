@@ -691,6 +691,37 @@ def create_data_loaders(
     else:
         test_loader = None
 
+    # Also wrap val/test loaders in NormalizedDataset for consistent label space
+    if normalize and task_type == "regression" and normalizer is not None:
+        if val_loader is not None:
+            normalized_val_dataset = NormalizedDataset(
+                base_dataset=val_loader.dataset,
+                normalizer=normalizer,
+            )
+            val_loader = torch.utils.data.DataLoader(
+                normalized_val_dataset,
+                batch_size=batch_size,
+                shuffle=False,  # Val/test should not be shuffled
+                num_workers=num_workers,
+                pin_memory=True,
+                persistent_workers=False,  # Disable to avoid temp file issues
+                prefetch_factor=4 if num_workers > 0 else None,
+            )
+        if test_loader is not None:
+            normalized_test_dataset = NormalizedDataset(
+                base_dataset=test_loader.dataset,
+                normalizer=normalizer,
+            )
+            test_loader = torch.utils.data.DataLoader(
+                normalized_test_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=num_workers,
+                pin_memory=True,
+                persistent_workers=False,
+                prefetch_factor=4 if num_workers > 0 else None,
+            )
+
     return train_loader, val_loader, test_loader, normalizer
 
 

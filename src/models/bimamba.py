@@ -1,24 +1,20 @@
 """
 Bi-Mamba 模型实现 - 分子性质预测
 
-Mamba 是一种状态空间模型（State Space Model），计算复杂度为 O(N)，
-比 Transformer 的 O(N^2) 更适合处理长分子序列。
+Mamba: O(N) 状态空间模型，比 Transformer 的 O(N²) 更适合处理长分子序列。
 """
+
+from __future__ import annotations
+
+import math
+from typing import Optional, Union
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Tuple, Union
-import math
 
 
 class BiMambaBlock(nn.Module):
-    """
-    双向 Mamba 块 - 选择性状态空间模型核心组件。
-
-    包含：输入投影、一维卷积、选择性扫描、门控机制、输出投影。
-    """
-
     def __init__(
         self,
         d_model: int,
@@ -33,7 +29,6 @@ class BiMambaBlock(nn.Module):
         dt_init_floor: float = 1e-4,
         conv_bias: bool = True,
         bias: bool = False,
-        use_fast_path: bool = True,
         layer_idx: Optional[int] = None,
         device: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
@@ -45,20 +40,17 @@ class BiMambaBlock(nn.Module):
         self.d_state = d_state
         self.d_conv = d_conv
         self.expand = expand
-        self.d_inner = int(self.expand * self.d_model)
-        self.dt_rank = (
-            math.ceil(self.d_model / 16) if dt_rank == "auto" else int(dt_rank)
-        )
-        self.use_fast_path = use_fast_path
+        self.d_inner = int(expand * d_model)
+        self.dt_rank = math.ceil(d_model / 16) if dt_rank == "auto" else int(dt_rank)
         self.layer_idx = layer_idx
 
-        self.in_proj = nn.Linear(
-            self.d_model, self.d_inner * 2, bias=bias, **factory_kwargs
-        )
+        # Input projection: x -> [x, z]
+        self.in_proj = nn.Linear(d_model, self.d_inner * 2, bias=bias, **factory_kwargs)
 
+        # 1D convolution for local context
         self.conv1d = nn.Conv1d(
-            in_channels=self.d_inner,
-            out_channels=self.d_inner,
+            self.d_inner,
+            self.d_inner,
             bias=conv_bias,
             kernel_size=d_conv,
             groups=self.d_inner,
@@ -68,8 +60,9 @@ class BiMambaBlock(nn.Module):
 
         self.activation = nn.SiLU()
 
+        # SSM parameters: dt, B, C
         self.x_proj = nn.Linear(
-            self.d_inner, self.dt_rank + self.d_state * 2, bias=False, **factory_kwargs
+            self.d_inner, self.dt_rank + d_state * 2, bias=False, **factory_kwargs
         )
         self.dt_proj = nn.Linear(
             self.dt_rank, self.d_inner, bias=True, **factory_kwargs
@@ -81,24 +74,24 @@ class BiMambaBlock(nn.Module):
         elif dt_init == "random":
             nn.init.uniform_(self.dt_proj.weight, -dt_init_std, dt_init_std)
         else:
-            raise NotImplementedError(f"未知的 dt_init 类型: {dt_init}")
+            raise NotImplementedError(
+                f"dt_init must be 'constant' or 'random', got {dt_init}"
+            )
 
         self._init_dt_proj_bias(dt_min, dt_max, dt_init_floor, factory_kwargs)
 
-        A = torch.arange(1, self.d_state + 1, dtype=torch.float32)
-        if device is not None:
-            A = A.to(device)
+        # SSM state parameters
+        A = torch.arange(1, d_state + 1, dtype=torch.float32, device=device)
         A = A.repeat(self.d_inner, 1).contiguous()
-        A_log = torch.log(A)
-        self.A_log = nn.Parameter(A_log)
-
+        self.A_log = nn.Parameter(torch.log(A))
         self.D = nn.Parameter(torch.ones(self.d_inner, **factory_kwargs))
 
-        self.out_proj = nn.Linear(
-            self.d_inner, self.d_model, bias=bias, **factory_kwargs
-        )
+        # Output projection
+        self.out_proj = nn.Linear(self.d_inner, d_model, bias=bias, **factory_kwargs)
 
-    def _init_dt_proj_bias(self, dt_min, dt_max, dt_init_floor, factory_kwargs):
+    def _init_dt_proj_bias(
+        self, dt_min: float, dt_max: float, dt_init_floor: float, factory_kwargs: dict
+    ) -> None:
         dt = torch.exp(
             torch.rand(self.d_inner, **factory_kwargs)
             * (math.log(dt_max) - math.log(dt_min))
@@ -110,16 +103,7 @@ class BiMambaBlock(nn.Module):
         self.dt_proj.bias._no_reinit = True
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        """
-        前向传播。
-
-        Args:
-            hidden_states: (B, L, D)
-
-        Returns:
-            output: (B, L, D)
-        """
-        batch, seqlen, dim = hidden_states.shape
+        batch, seqlen, _ = hidden_states.shape
 
         xz = self.in_proj(hidden_states)
         x, z = xz.chunk(2, dim=-1)
@@ -132,27 +116,15 @@ class BiMambaBlock(nn.Module):
         y = self.ssm(x)
         y = y * F.silu(z)
 
-        output = self.out_proj(y)
-        return output
+        return self.out_proj(y)
 
     def ssm(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        状态空间模型（选择性扫描）。
-
-        Args:
-            x: (B, L, d_inner)
-
-        Returns:
-            y: (B, L, d_inner)
-        """
         x_dbl = self.x_proj(x)
         dt, B, C = torch.split(
             x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1
         )
-        dt = self.dt_proj(dt)
-        dt = F.softplus(dt)
-        y = self.selective_scan(x, dt, B, C)
-        return y
+        dt = F.softplus(self.dt_proj(dt))
+        return self.selective_scan(x, dt, B, C)
 
     def _discretize(self, dt: torch.Tensor, B: torch.Tensor, A: torch.Tensor):
         dt_clamped = torch.clamp(dt, min=-10, max=10)
@@ -170,33 +142,16 @@ class BiMambaBlock(nn.Module):
         C_t: torch.Tensor,
         x_t: torch.Tensor,
         A: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         dA, dB = self._discretize(dt_t, B_t, A)
         x_t_clamped = torch.clamp(x_t, min=-10, max=10)
-        h_new = dA * h + dB * x_t_clamped.unsqueeze(-1)
-        h_new = torch.clamp(h_new, min=-100, max=100)
+        h_new = torch.clamp(dA * h + dB * x_t_clamped.unsqueeze(-1), min=-100, max=100)
         y_t = torch.sum(h_new * C_t.unsqueeze(1), dim=2)
         return y_t, h_new
 
     def selective_scan(
         self, x: torch.Tensor, dt: torch.Tensor, B: torch.Tensor, C: torch.Tensor
     ) -> torch.Tensor:
-        """
-        选择性扫描：依赖输入的状态更新机制。
-
-        离散化: dA = exp(dt * A), dB = dt * B
-        状态更新: h_new = dA * h + dB * x
-        输出: y = C * h_new
-
-        Args:
-            x: (B, L, d_inner)
-            dt: (B, L, d_inner)
-            B: (B, L, d_state)
-            C: (B, L, d_state)
-
-        Returns:
-            y: (B, L, d_inner)
-        """
         batch, seqlen, dim = x.shape
         A = -torch.exp(self.A_log)
         D = self.D
@@ -211,15 +166,10 @@ class BiMambaBlock(nn.Module):
             outputs.append(y_t)
 
         y = torch.stack(outputs, dim=1)
-        y = y + x * D.unsqueeze(0)
-        return y
+        return y + x * D.unsqueeze(0)
 
 
 class BiMambaEncoder(nn.Module):
-    """
-    双向 Mamba 编码器，同时从左到右和从右到左处理序列。
-    """
-
     def __init__(
         self,
         vocab_size: int,
@@ -250,19 +200,7 @@ class BiMambaEncoder(nn.Module):
             max_seq_length, d_model, **factory_kwargs
         )
 
-        self.forward_layers = self._make_layers(
-            d_model, d_state, d_conv, expand, factory_kwargs
-        )
-        self.backward_layers = self._make_layers(
-            d_model, d_state, d_conv, expand, factory_kwargs
-        )
-
-        self.norm = nn.LayerNorm(d_model, **factory_kwargs)
-        self.dropout = nn.Dropout(dropout)
-        self.fusion_gate = nn.Linear(d_model * 2, d_model * 2, **factory_kwargs)
-
-    def _make_layers(self, d_model, d_state, d_conv, expand, factory_kwargs):
-        return nn.ModuleList(
+        self.forward_layers = nn.ModuleList(
             [
                 BiMambaBlock(
                     d_model=d_model,
@@ -271,9 +209,25 @@ class BiMambaEncoder(nn.Module):
                     expand=expand,
                     **factory_kwargs,
                 )
-                for _ in range(self.n_layers)
+                for _ in range(n_layers)
             ]
         )
+        self.backward_layers = nn.ModuleList(
+            [
+                BiMambaBlock(
+                    d_model=d_model,
+                    d_state=d_state,
+                    d_conv=d_conv,
+                    expand=expand,
+                    **factory_kwargs,
+                )
+                for _ in range(n_layers)
+            ]
+        )
+
+        self.norm = nn.LayerNorm(d_model, **factory_kwargs)
+        self.dropout = nn.Dropout(dropout)
+        self.fusion_gate = nn.Linear(d_model * 2, d_model * 2, **factory_kwargs)
 
     def forward(
         self,
@@ -281,15 +235,6 @@ class BiMambaEncoder(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         cls_token: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """
-        Args:
-            input_ids: (B, L)
-            attention_mask: (B, L)
-            cls_token: (B, 1, D) optional CLS embedding to prepend
-
-        Returns:
-            hidden_states: (B, L, D) or (B, L+1, D) if cls_token provided
-        """
         batch_size, seq_len = input_ids.shape
 
         position_ids = (
@@ -297,9 +242,9 @@ class BiMambaEncoder(nn.Module):
             .unsqueeze(0)
             .expand(batch_size, -1)
         )
-        token_embeds = self.token_embedding(input_ids)
-        position_embeds = self.position_embedding(position_ids)
-        hidden_states = self.dropout(token_embeds + position_embeds)
+        hidden_states = self.dropout(
+            self.token_embedding(input_ids) + self.position_embedding(position_ids)
+        )
 
         if cls_token is not None:
             hidden_states = torch.cat([cls_token, hidden_states], dim=1)
@@ -330,19 +275,13 @@ class BiMambaEncoder(nn.Module):
 
         combined = torch.cat([forward_hidden, backward_hidden], dim=-1)
         gate = torch.sigmoid(self.fusion_gate(combined))
-        gate_forward, gate_backward = gate.chunk(2, dim=-1)
-        fused_hidden = gate_forward * forward_hidden + gate_backward * backward_hidden
+        gate_fwd, gate_bwd = gate.chunk(2, dim=-1)
+        fused_hidden = gate_fwd * forward_hidden + gate_bwd * backward_hidden
 
-        output = self.norm(fused_hidden)
-        return output
+        return self.norm(fused_hidden)
 
 
 class BiMambaForPropertyPrediction(nn.Module):
-    """
-    Bi-Mamba 分子性质预测模型。
-    支持回归任务和分类任务。
-    """
-
     def __init__(
         self,
         vocab_size: int,
@@ -386,58 +325,47 @@ class BiMambaForPropertyPrediction(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
         self.classifier = nn.Linear(d_model, num_labels, **factory_kwargs)
-
-        if task_type == "regression":
-            self.loss_fct = nn.MSELoss()
-        else:
-            self.loss_fct = nn.BCEWithLogitsLoss()
+        self.loss_fct = (
+            nn.MSELoss() if task_type == "regression" else nn.BCEWithLogitsLoss()
+        )
 
     def forward(
         self,
         input_ids: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        """
-        Args:
-            input_ids: (B, L)
-            attention_mask: (B, L)
-            labels: (B,) or (B, num_labels)
-
-        Returns:
-            logits, loss
-        """
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         batch_size = input_ids.shape[0]
 
-        cls_token = None
-        if self.pooling == "cls":
-            cls_token = self.cls_token.expand(batch_size, -1, -1)
-
+        cls_token = (
+            self.cls_token.expand(batch_size, -1, -1) if self.pooling == "cls" else None
+        )
         encoder_outputs = self.encoder(input_ids, attention_mask, cls_token=cls_token)
 
         if self.pooling == "mean":
             if attention_mask is not None:
-                sum_embeddings = torch.sum(
-                    encoder_outputs * attention_mask.unsqueeze(-1), dim=1
+                sum_mask = torch.sum(attention_mask, dim=1, keepdim=True).clamp(
+                    min=1e-9
                 )
-                sum_mask = torch.sum(attention_mask, dim=1, keepdim=True)
-                pooled_output = sum_embeddings / sum_mask.clamp(min=1e-9)
+                pooled_output = (
+                    torch.sum(encoder_outputs * attention_mask.unsqueeze(-1), dim=1)
+                    / sum_mask
+                )
             else:
                 pooled_output = torch.mean(encoder_outputs, dim=1)
-
         elif self.pooling == "max":
             if attention_mask is not None:
-                masked_embeddings = encoder_outputs.clone()
-                masked_embeddings[attention_mask == 0] = -1e9
-                pooled_output = torch.max(masked_embeddings, dim=1)[0]
+                masked = encoder_outputs.clone()
+                masked[attention_mask == 0] = -1e9
+                pooled_output = torch.max(masked, dim=1)[0]
             else:
                 pooled_output = torch.max(encoder_outputs, dim=1)[0]
-
         elif self.pooling == "cls":
-            # encoder_outputs now has CLS at position 0
             pooled_output = encoder_outputs[:, 0]
         else:
-            raise ValueError(f"未知的池化方法: {self.pooling}")
+            raise ValueError(
+                f"pooling must be 'mean', 'max', or 'cls', got {self.pooling}"
+            )
 
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
@@ -462,7 +390,6 @@ def create_bimamba_model(
     num_labels: int = 1,
     **kwargs,
 ) -> BiMambaForPropertyPrediction:
-    """工厂函数：创建 BiMamba 模型。"""
     return BiMambaForPropertyPrediction(
         vocab_size=vocab_size,
         d_model=d_model,
