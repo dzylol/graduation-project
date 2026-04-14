@@ -607,6 +607,23 @@ def create_data_loaders(
     if train_path is None and train_dataset_name is None:
         raise ValueError("Must specify either train_path or train_dataset_name")
 
+    def _load_split_meta(output_dir: str) -> Optional[dict]:
+        meta_path = os.path.join(output_dir, "split_meta.json")
+        if os.path.exists(meta_path):
+            with open(meta_path) as f:
+                return json.load(f)
+        return None
+
+    # Try to load column mapping from split metadata if files come from a scaffold split
+    if smiles_col is None and label_cols is None and train_path:
+        train_dir = os.path.dirname(train_path)
+        meta = _load_split_meta(train_dir)
+        if meta:
+            smiles_col = meta.get("smiles_col")
+            label_col_from_meta = meta.get("label_col")
+            if label_col_from_meta:
+                label_cols = [label_col_from_meta]
+
     def make_file_loader(
         path: str, is_train: bool = False
     ) -> torch.utils.data.DataLoader:
@@ -968,7 +985,6 @@ def scaffold_split_dataset(
                     f"Could not auto-detect label column. Found: {numeric_cols}"
                 )
 
-    # Keep only smiles and label columns
     cols_to_keep = [smiles_col, label_col]
     train_df = df.iloc[train_indices][cols_to_keep].reset_index(drop=True)
     val_df = df.iloc[val_indices][cols_to_keep].reset_index(drop=True)
@@ -979,6 +995,10 @@ def scaffold_split_dataset(
         train_df.to_csv(os.path.join(output_dir, "train.csv"), index=False)
         val_df.to_csv(os.path.join(output_dir, "val.csv"), index=False)
         test_df.to_csv(os.path.join(output_dir, "test.csv"), index=False)
+        # Save column mapping metadata so create_data_loaders knows which columns to use
+        meta = {"smiles_col": smiles_col, "label_col": label_col}
+        with open(os.path.join(output_dir, "split_meta.json"), "w") as f:
+            json.dump(meta, f)
 
     return train_df, val_df, test_df
 
