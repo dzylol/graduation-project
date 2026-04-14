@@ -31,6 +31,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime
 from typing import Dict, Any, Optional
 
 import numpy as np
@@ -322,6 +323,12 @@ def evaluate(
 # ============================================================================
 
 
+
+
+def log_experiment_to_json(experiment_data, filepath):
+    with open(filepath, 'w') as f:
+        json.dump(experiment_data, f, indent=2)
+
 def main():
     """
     主训练函数
@@ -358,6 +365,29 @@ def main():
     # -------------------------------------------------------------------------
     # 5. 保存训练参数
     # -------------------------------------------------------------------------
+    # Create logs directory and experiment log file
+    logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = f"{args.dataset}_{args.model_type}_{timestamp}.json"
+    log_filepath = os.path.join(logs_dir, log_filename)
+    
+    # Initialize experiment data structure
+    experiment_data = {
+        "experiment_info": {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "dataset": args.dataset,
+            "model_type": args.model_type,
+            "task_type": args.task_type,
+            "split": args.split,
+            "split_seed": args.split_seed,
+        },
+        "training_params": {},
+        "model_params": {},
+        "data_info": {},
+        "training_results": {},
+    }
+    
     with open(os.path.join(args.output_dir, "args.json"), "w") as f:
         json.dump(vars(args), f, indent=2)
 
@@ -415,6 +445,11 @@ def main():
                 normalize=(args.task_type == "regression"),
             )
         finally:
+            experiment_data["data_info"]["train_samples"] = len(train_loader.dataset)
+            if val_loader:
+                experiment_data["data_info"]["val_samples"] = len(val_loader.dataset)
+            if test_loader:
+                experiment_data["data_info"]["test_samples"] = len(test_loader.dataset)
             # Clean up temp dir only after training is done (deferred to end of script)
             pass
     else:
@@ -430,14 +465,22 @@ def main():
             num_workers=args.num_workers,
             normalize=(args.task_type == "regression"),
         )
+        experiment_data["data_info"]["train_samples"] = len(train_loader.dataset)
+        if val_loader:
+            experiment_data["data_info"]["val_samples"] = len(val_loader.dataset)
+        if test_loader:
+            experiment_data["data_info"]["test_samples"] = len(test_loader.dataset)
     if normalizer:
         logger.info(f"Z-score 归一化: mean={normalizer.mean:.4f}, std={normalizer.std:.4f}")
+        experiment_data["data_info"]["normalization"] = {"mean": float(normalizer.mean), "std": float(normalizer.std)}
 
     # 从数据集获取词汇表信息
     dataset_for_vocab = train_loader.dataset.base_dataset if normalizer else train_loader.dataset
     vocab_size = dataset_for_vocab.get_vocab_size()
     pad_token_id = dataset_for_vocab.get_pad_token_id()
     logger.info(f"词汇表大小: {vocab_size}")
+    experiment_data["data_info"]["vocab_size"] = vocab_size
+    experiment_data["data_info"]["max_length"] = args.max_length
 
     # -------------------------------------------------------------------------
     # 7. 初始化实验追踪数据库
@@ -519,10 +562,32 @@ def main():
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"总参数数量: {total_params:,}")
     logger.info(f"可训练参数数量: {trainable_params:,}")
+    experiment_data["model_params"] = {
+        "d_model": args.d_model,
+        "d_mamba": args.d_mamba,
+        "n_layers": args.n_layers,
+        "pooling": args.pooling,
+        "dropout": args.dropout,
+        "total_params": total_params,
+        "trainable_params": trainable_params,
+    }
 
     # -------------------------------------------------------------------------
     # 9. 创建优化器和学习率调度器
     # -------------------------------------------------------------------------
+    # Log training params
+    experiment_data["training_params"] = {
+        "epochs": args.epochs,
+        "batch_size": args.batch_size,
+        "learning_rate": args.learning_rate,
+        "weight_decay": args.weight_decay,
+        "warmup_epochs": args.warmup_epochs,
+        "max_grad_norm": args.max_grad_norm,
+        "gradient_accumulation_steps": args.gradient_accumulation_steps,
+        "device": str(device),
+        "seed": args.seed,
+    }
+    
     optimizer = optim.AdamW(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
