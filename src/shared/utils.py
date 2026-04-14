@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import random
 from typing import Dict, Optional
 
 import numpy as np
