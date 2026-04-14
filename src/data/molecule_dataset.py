@@ -937,41 +937,42 @@ def scaffold_split_dataset(
         reverse=True,
     )
 
-    # Assign each scaffold to the split with largest proportional deficit
+    # Shuffle scaffolds then assign round-robin to balance sizes
     np.random.seed(seed)
-    all_scaffolds = [(s, scaffold_to_indices[s]) for s in sorted_scaffolds]
-    np.random.shuffle(all_scaffolds)
-
-    total = len(df)
-    train_target = int(total * train_ratio)
-    val_target = int(total * val_ratio)
-    test_target = total - train_target - val_target
+    shuffled = list(scaffold_to_indices.items())
+    np.random.shuffle(shuffled)
 
     train_indices = []
     val_indices = []
     test_indices = []
 
-    train_count = 0.0
-    val_count = 0.0
-    test_count = 0.0
+    train_count = 0
+    val_count = 0
+    test_count = 0
+    total = len(df)
+    train_target = int(total * train_ratio)
+    val_target = int(total * val_ratio)
 
-    for scaffold, indices in all_scaffolds:
+    for scaff_idx, (scaffold, indices) in enumerate(shuffled):
+        mod = scaff_idx % 3
         n = len(indices)
-        # Compute proportional deficit for each split
-        train_deficit = max(0, train_target - train_count) / train_target
-        val_deficit = max(0, val_target - val_count) / val_target
-        test_deficit = max(0, test_target - test_count) / test_target
-
-        max_deficit = max(train_deficit, val_deficit, test_deficit)
-        if max_deficit == train_deficit and train_count < train_target:
+        if mod == 0 and train_count < train_target:
             train_indices.extend(indices)
             train_count += n
-        elif max_deficit == val_deficit and val_count < val_target:
+        elif mod == 1 and val_count < val_target:
             val_indices.extend(indices)
             val_count += n
         else:
             test_indices.extend(indices)
-            test_count += n
+
+    # If any split is empty due to rounding, redistribute smallest scaffolds
+    if val_count == 0 or test_count == 0:
+        all_indices = train_indices + val_indices + test_indices
+        np.random.shuffle(all_indices)
+        n = len(all_indices)
+        train_indices = all_indices[:train_target]
+        val_indices = all_indices[train_target : train_target + val_target]
+        test_indices = all_indices[train_target + val_target :]
 
     # Shuffle within each split
     np.random.shuffle(train_indices)
