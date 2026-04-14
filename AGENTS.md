@@ -1,7 +1,7 @@
 # AGENTS.md - Bi-Mamba-Chem
 
-**Generated:** 2026-04-13
-**Commit:** 0446056 (main)
+**Generated:** 2026-04-14
+**Commit:** 7390a0b (main)
 **Language:** Python (PyTorch + RDKit)
 
 When reasoning through problem, use draft-style thinking:
@@ -71,36 +71,12 @@ from src.models.bimamba import BiMambaForPropertyPrediction
 - Dataclasses as DTOs (not bare dicts)
 - ≤50 lines per fn
 - `validate_smiles()` before RDKit processing
+- Z-score normalization for regression via `LabelNormalizer`
+- `create_data_loaders()` returns `(train, val, test, normalizer)`
 - Device order: cuda → mps → cpu (see `get_device()`)
-- Z-score normalization is done automatically for regression tasks via `LabelNormalizer`
-
-## ML-Specific Guidelines
-
-### Data Pipeline
-- Validate SMILES via `_validate_smiles()` before RDKit processing
-- Cache tokenized sequences to disk
-- Z-score normalization is done automatically for regression via `LabelNormalizer`
-- `create_data_loaders()` returns `(train_loader, val_loader, test_loader, normalizer)`
-
-### Downloading Datasets
-```bash
-python download_datasets.py                    # Download all via DeepChem
-python download_datasets.py --dataset ESOL   # Specific dataset
-python download_datasets.py --zinc           # ZINC 250K pretraining data
-python download_datasets.py --example         # Force tiny example data
-```
 
 ### MoleculeNet Datasets (via DeepChem)
-| Dataset | Task | Molecules | Metric |
-|---------|------|-----------|--------|
-| ESOL | Regression | 1,128 | RMSE |
-| BBBP | Classification | 2,039 | ROC-AUC |
-| ClinTox | Classification | 1,478 | ROC-AUC |
-| FreeSolv | Regression | 642 | RMSE |
-| Lipophilicity | Regression | 4,200 | RMSE |
-
-### Pretraining (Two-Stage)
-For SMILES-Mamba style training: pretrain on ZINC 250K, then fine-tune on downstream tasks.
+ESOL (regression, 1,128), BBBP (classification, 2,039), ClinTox (classification, 1,478), FreeSolv (regression, 642), Lipophilicity (regression, 4,200)
 
 ### Device Management
 ```python
@@ -117,35 +93,23 @@ def get_device() -> str:
 - Linear warmup for first 5 epochs
 - Save `state_dict` only; filename: `{dataset}_bi_mamba_epoch{N}_valLoss{val_loss:.4f}.pt`
 
-### Assertion Best Practices
-```python
-assert abs(pred - expected) < 1e-5, f"Expected ~{expected}, got {pred}"
-```
-
 ## Directory Layout
 ```
 src/
-├── models/           # bimamba.py (477L), bimamba_with_mamba_ssm.py (436L)
-├── data/             # molecule_dataset.py (374L)
+├── models/           # bimamba.py (400L), bimamba_with_mamba_ssm.py (574L)
+├── data/             # tokenizer.py, dataset.py, dataloader.py, split.py, column_mapping.py
 ├── db/               # database.py, experiment_repo.py, molecule_repo.py
 ├── visualization/    # dashboard.py, training_plots.py, prediction_plots.py, molecule_plots.py
-└── (utils/)         # EMPTY — do not use
+└── shared/          # shared utilities
 tests/
 ├── test_model.py
-└── test_data.py
+├── test_data.py
+└── test_column_detection.py
 scripts/
 ├── manage_experiments.py
 └── benchmarks/       # benchmark_efficiency.py, benchmark_transformer.py, split_*.py
-train.py, eval.py, download_datasets.py
+train.py, eval.py, download_datasets.py (MISSING)
 ```
-
-## Key Files
-| File | Description |
-|------|-------------|
-| `src/models/bimamba.py` | Core BiMamba model (BiMambaBlock, BiMambaEncoder, BiMambaForPropertyPrediction) |
-| `src/data/molecule_dataset.py` | MoleculeTokenizer, MoleculeDataset, create_data_loaders |
-| `train.py` | Training entry point |
-| `eval.py` | Evaluation script |
 
 ## Troubleshooting
 | Issue | Solution |
@@ -153,7 +117,6 @@ train.py, eval.py, download_datasets.py
 | NaN loss | Reduce learning rate, check gradients |
 | OOM errors | Decrease batch size, enable gradient checkpointing |
 | RDKit failures | Validate SMILES with `_validate_smiles()` |
-| MPS errors | Use CPU for debugging: `--device cpu` |
 
 ## Project Status
 
@@ -161,19 +124,16 @@ train.py, eval.py, download_datasets.py
 |--------|--------|
 | CI/CD | **Partial** — Dockerfile exists but NOT integrated with CI; no GitHub Actions workflows |
 | Anti-patterns | **Clean** — no DO NOT/NEVER/ALWAYS/WARNING comments in source code |
-| Package config | **None** — missing `__init__.py` in `src/models/` and `src/data/`; not pip-installable (use `PYTHONPATH=.`) |
+| Package config | **Partial** — `__init__.py` added to `src/models/` and `src/data/`; use `PYTHONPATH=.` |
 | Test config | **None** — pytest runs without config file |
 
 ## Module-Specific AGENTS.md
-
-| Module | File | Purpose |
-|--------|------|---------|
-| `src/models/` | AGENTS.md | BiMamba architecture, fusion modes, pooling |
-| `src/visualization/` | AGENTS.md | Plotting conventions, RDKit molecule rendering |
-| `src/data/` | AGENTS.md | SMILES tokenization, dataset handling, z-score norm |
-| `src/db/` | AGENTS.md | SQLite persistence, ExperimentRepository, singleton pattern |
-| `tests/` | AGENTS.md | Test conventions, dual-mode execution, pytest patterns |
-| `scripts/benchmarks/` | AGENTS.md | Efficiency benchmarking scripts, O(N) complexity validation |
+- `src/models/AGENTS.md` — BiMamba architecture, fusion modes, pooling
+- `src/visualization/AGENTS.md` — Plotting conventions, RDKit molecule rendering
+- `src/data/AGENTS.md` — SMILES tokenization, dataset handling, z-score norm
+- `src/db/AGENTS.md` — SQLite persistence, ExperimentRepository, singleton pattern
+- `tests/AGENTS.md` — Test conventions, dual-mode execution, pytest patterns
+- `scripts/benchmarks/AGENTS.md` — O(N) benchmarking scripts
 
 ## Testing Conventions
 
