@@ -1,6 +1,6 @@
 # Tests AGENTS.md - BiMamba-Chem
 
-**Generated:** 2026-03-26
+**Generated:** 2026-04-15
 
 ## OVERVIEW
 
@@ -10,8 +10,9 @@ Test suite for BiMamba molecular property prediction models.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `test_model.py` | 238 | BiMambaForPropertyPrediction forward pass, gradient, state dict |
-| `test_data.py` | 289 | SMILES tokenization, dataset collation, data loader creation |
+| `test_model.py` | ~238 | BiMambaForPropertyPrediction forward pass, gradient, state dict |
+| `test_data.py` | ~289 | SMILES tokenization, dataset collation, data loader creation |
+| `test_column_detection.py` | - | CSV column name detection |
 
 ## Key Test Functions
 

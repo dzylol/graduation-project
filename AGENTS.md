@@ -1,7 +1,7 @@
 # AGENTS.md - Bi-Mamba-Chem
 
-**Generated:** 2026-04-14
-**Commit:** 7390a0b (main)
+**Generated:** 2026-04-15
+**Commit:** 34cbd91 (main)
 **Language:** Python (PyTorch + RDKit)
 
 When reasoning through problem, use draft-style thinking:
@@ -17,12 +17,8 @@ Bidirectional Mamba SSM for molecular property prediction. O(N) linear complexit
 |------|------|
 | `train.py` | Single-task training (ESOL/BBBP/ClinTox/FreeSolv/Lipophilicity) |
 | `eval.py` | Model evaluation on test sets |
-| `download_datasets.py` | ⚠️ **MISSING** — documented but not present in codebase |
 | `scripts/manage_experiments.py` | SQLite experiment CRUD |
-| `scripts/batch_train_phase1.py` | ⚠️ **UNDOCUMENTED** — verify before using, optimized for RTX 5060 Ti |
-
-**Note:** `train_multitask.py` referenced in README does NOT exist — do not look for it.
-**Note:** `scripts/batch_train_phase1.py` exists but is undocumented — verify before using.
+| `scripts/batch_train_phase1.py` | Batch training script (RTX 5060 Ti optimized) |
 
 ## Key Commands
 
@@ -30,6 +26,8 @@ Bidirectional Mamba SSM for molecular property prediction. O(N) linear complexit
 ```bash
 export KMP_DUPLICATE_LIB_OK=TRUE  # Required on Mac to avoid OpenMP conflicts
 pip install -r requirements.txt
+pip install torch torchvision  # MPS/CUDA support
+conda install -c conda-forge rdkit -y  # RDKit (strongly recommended)
 ```
 
 ### Testing (Run First)
@@ -75,8 +73,8 @@ from src.models.bimamba import BiMambaForPropertyPrediction
 - `create_data_loaders()` returns `(train, val, test, normalizer)`
 - Device order: cuda → mps → cpu (see `get_device()`)
 
-### MoleculeNet Datasets (via DeepChem)
-ESOL (regression, 1,128), BBBP (classification, 2,039), ClinTox (classification, 1,478), FreeSolv (regression, 642), Lipophilicity (regression, 4,200)
+### MoleculeNet Datasets
+ESOL (regression, ~1,100), BBBP (classification, ~2,000), ClinTox (classification, ~1,500), FreeSolv (regression, ~640), Lipophilicity (regression, ~4,200), bace (classification), HIV (classification), SIDER (classification), MUV (classification), ZINC250K (regression), EGFR (regression), mpro (regression), BDB2020+ (regression)
 
 ### Device Management
 ```python
@@ -96,19 +94,65 @@ def get_device() -> str:
 ## Directory Layout
 ```
 src/
-├── models/           # bimamba.py (400L), bimamba_with_mamba_ssm.py (574L)
-├── data/             # tokenizer.py, dataset.py, dataloader.py, split.py, column_mapping.py
-├── db/               # database.py, experiment_repo.py, molecule_repo.py
-├── visualization/    # dashboard.py, training_plots.py, prediction_plots.py, molecule_plots.py
-└── shared/          # shared utilities
+├── models/
+│   ├── __init__.py
+│   ├── bimamba.py                  # Manual SSM (primary, no deps)
+│   ├── bimamba_with_mamba_ssm.py   # mamba_ssm package wrapper
+│   ├── bimamba_with_mamba_ssm_architecture.md
+│   └── AGENTS.md
+├── data/
+│   ├── __init__.py
+│   ├── tokenizer.py                 # SMILES tokenization
+│   ├── dataset.py                   # Dataset base classes
+│   ├── molecule_dataset.py          # MoleculeDataset + MoleculeTokenizer
+│   ├── dataloader.py                # create_data_loaders + LabelNormalizer
+│   ├── split.py                     # scaffold_split / random_split
+│   ├── column_mapping.py             # CSV column detection
+│   ├── molecule_dataset_architecture.md
+│   └── AGENTS.md
+├── db/
+│   ├── __init__.py
+│   ├── database.py                  # SQLite singleton + Dataclass
+│   ├── experiment_repo.py           # ExperimentRepository CRUD
+│   ├── molecule_repo.py             # MoleculeRepository CRUD
+│   └── AGENTS.md
+├── visualization/
+│   ├── __init__.py
+│   ├── dashboard.py                 # Multi-experiment comparison
+│   ├── training_plots.py            # Training curves
+│   ├── prediction_plots.py          # Prediction scatter
+│   ├── molecule_plots.py            # RDKit molecule rendering
+│   └── AGENTS.md
+└── shared/
+    ├── __init__.py
+    └── utils.py                     # Training/eval arg parsing, helpers
+
 tests/
+├── __init__.py
 ├── test_model.py
 ├── test_data.py
 └── test_column_detection.py
+
 scripts/
 ├── manage_experiments.py
-└── benchmarks/       # benchmark_efficiency.py, benchmark_transformer.py, split_*.py
-train.py, eval.py, download_datasets.py (MISSING)
+├── batch_train_phase1.py
+└── benchmarks/
+    ├── benchmark_efficiency.py
+    ├── benchmark_transformer.py
+    ├── train_esol_pooling.py
+    ├── split_esol.py
+    ├── split_all.py
+    └── AGENTS.md
+
+dataset/                           # MoleculeNet datasets
+├── ESOL/
+├── BBBP/
+├── ClinTox/
+├── FreeSolv/
+├── Lipophilicity/
+└── ... (more datasets)
+
+train.py, eval.py
 ```
 
 ## Troubleshooting
@@ -122,9 +166,9 @@ train.py, eval.py, download_datasets.py (MISSING)
 
 | Aspect | Status |
 |--------|--------|
-| CI/CD | **Partial** — Dockerfile exists but NOT integrated with CI; no GitHub Actions workflows |
+| CI/CD | **Partial** — no GitHub Actions workflows |
 | Anti-patterns | **Clean** — no DO NOT/NEVER/ALWAYS/WARNING comments in source code |
-| Package config | **Partial** — `__init__.py` added to `src/models/` and `src/data/`; use `PYTHONPATH=.` |
+| Package config | **Partial** — `__init__.py` in all subpackages; use `PYTHONPATH=.` |
 | Test config | **None** — pytest runs without config file |
 
 ## Module-Specific AGENTS.md
@@ -143,4 +187,3 @@ train.py, eval.py, download_datasets.py (MISSING)
 python -m pytest tests/ -v   # All tests
 python tests/test_model.py    # Standalone (no pytest)
 ```
-

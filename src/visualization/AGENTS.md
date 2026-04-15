@@ -6,10 +6,10 @@
 ```
 src/visualization/
 ├── __init__.py
-├── dashboard.py           # Multi-experiment comparison (287L)
-├── training_plots.py     # Training curves and metric bars (193L)
-├── prediction_plots.py   # Scatter plots and residual analysis (227L)
-└── molecule_plots.py     # RDKit molecule rendering (200L)
+├── dashboard.py           # Multi-experiment comparison
+├── training_plots.py     # Training curves and metric bars
+├── prediction_plots.py   # Scatter plots and residual analysis
+└── molecule_plots.py     # RDKit molecule rendering
 ```
 
 ## Key Functions

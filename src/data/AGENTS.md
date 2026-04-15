@@ -1,23 +1,30 @@
 # AGENTS.md - src/data/
 
-**SMILES tokenization + molecular dataset handling.** CSV/JSON/TXT loading, RDKit validation, z-score normalization, SQLite database support.
+**SMILES tokenization + molecular dataset handling.** CSV loading, RDKit validation, z-score normalization, SQLite database support.
 
 ## Structure
 ```
 src/data/
-└── molecule_dataset.py    # MoleculeTokenizer, MoleculeDataset, DatabaseMoleculeDataset, LabelNormalizer, create_data_loaders
+├── __init__.py
+├── tokenizer.py           # MoleculeTokenizer (SMILES → token indices)
+├── dataset.py            # Dataset base classes (MoleculeDataset, DatabaseMoleculeDataset, Data)
+├── molecule_dataset.py   # MoleculeDataset + MoleculeTokenizer (main implementation)
+├── dataloader.py         # create_data_loaders + LabelNormalizer + NormalizedDataset
+├── split.py              # scaffold_split_dataset / random_split_dataset
+├── column_mapping.py     # ColumnMapping + detect_column_mapping
+└── AGENTS.md
 ```
 
 ## Key Classes
 
 | Symbol | Type | Location | Role |
 |--------|------|----------|------|
-| `MoleculeTokenizer` | class | molecule_dataset.py | SMILES → token indices |
+| `MoleculeTokenizer` | class | tokenizer.py | SMILES → token indices |
 | `MoleculeDataset` | class | molecule_dataset.py | Torch Dataset from file (CSV/JSON/TXT) |
 | `DatabaseMoleculeDataset` | class | molecule_dataset.py | Torch Dataset from SQLite database |
-| `LabelNormalizer` | class | molecule_dataset.py | Z-score normalization for regression |
-| `NormalizedDataset` | class | molecule_dataset.py | Dataset wrapper that applies z-score to labels |
-| `create_data_loaders` | factory | molecule_dataset.py | Train/val/test DataLoaders from file or database |
+| `LabelNormalizer` | class | dataloader.py | Z-score normalization for regression |
+| `NormalizedDataset` | class | dataloader.py | Dataset wrapper that applies z-score to labels |
+| `create_data_loaders` | factory | dataloader.py | Train/val/test DataLoaders from file or database |
 
 ## Token Vocabulary
 
@@ -39,8 +46,21 @@ src/data/
 ### File Mode
 ```python
 train_loader, val_loader, test_loader, normalizer = create_data_loaders(
-    train_path="data/ESOL/train.csv",
-    val_path="data/ESOL/val.csv",
+    train_path="dataset/ESOL/train.csv",
+    val_path="dataset/ESOL/val.csv",
+    test_path="dataset/ESOL/test.csv",
+    batch_size=32,
+)
+```
+
+### Single-File Mode (Auto-Split)
+```python
+train_loader, val_loader, test_loader, normalizer = create_data_loaders(
+    train_path="dataset/ESOL/train.csv",  # Single file, split at runtime
+    val_path=None,
+    test_path=None,
+    batch_size=32,
+    normalize=True,
 )
 ```
 

@@ -5,19 +5,22 @@
 ## Structure
 ```
 src/models/
-├── bimamba.py                  # Manual SSM (primary)
-└── bimamba_with_mamba_ssm.py   # Wrapper using mamba-ssm package
+├── __init__.py
+├── bimamba.py                  # Manual SSM (primary, no external deps)
+├── bimamba_with_mamba_ssm.py   # Wrapper using mamba-ssm package
+├── bimamba_with_mamba_ssm_architecture.md  # Architecture tutorial
+└── AGENTS.md
 ```
 
 ## Key Classes
 
 | Symbol | Type | Location | Role |
 |--------|------|----------|------|
-| `BiMambaBlock` | class | bimamba.py:15 | Selective SSM core — in_proj, conv1d, x_proj, dt_proj, A_log, D, out_proj |
+| `BiMambaBlock` | class | bimamba.py | Selective SSM core — in_proj, conv1d, x_proj, dt_proj, A_log, D, out_proj |
 | `BiMambaEncoder` | class | bimamba.py | Forward + backward BiMambaBlock stacks, fusion |
 | `BiMambaForPropertyPrediction` | class | bimamba.py | Full model: embedding → encoder → pooling → head |
 | `create_bimamba_model` | factory | bimamba.py | `d_model`, `n_layers`, `fusion` (concat/add/gate), `pool_type` (mean/max/cls) |
-| `SelectiveScanMamba` | class | bimamba_with_mamba_ssm.py | Wrapper around mamba_ssmSelectiveScan; accepts input_size, d_state, d_conv, expand |
+| `SelectiveScanMamba` | class | bimamba_with_mamba_ssm.py | Wrapper around mamba_ssm SelectiveScan; accepts input_size, d_state, d_conv, expand |
 | `BiMambaBlockWrapper` | class | bimamba_with_mamba_ssm.py | Wraps SelectiveScanMamba with dropout, residual, layer norm |
 | `BiMambaEncoderWrapper` | class | bimamba_with_mamba_ssm.py | Stacks BiMambaBlockWrapper layers with fusion modes |
 
@@ -31,11 +34,18 @@ src/models/
 - `max`: global max pooling
 - `cls`: [CLS] token pooling
 
+## Model Types
+
+| Type | Description | Dependency |
+|------|-------------|------------|
+| `manual` | Pure PyTorch SSM implementation, no external deps | None |
+| `mamba_ssm` | Uses `mamba-ssm` package, faster on GPU | `pip install mamba-ssm` |
+
 ## Conventions (THIS MODULE)
 - SSM parameters: `d_state=16`, `d_conv=4`, `expand=2`
 - dt_rank: `auto` = `ceil(d_model / 16)`
 - Activation: `SiLU` (nn.SiLU)
-- A_log: `nn.Parameter(log(A))` where A =.arange(1, d_state+1)
+- A_log: `nn.Parameter(log(A))` where A = `torch.arange(1, d_state+1)`
 
 ## Anti-Patterns (THIS MODULE)
 - **NEVER** use `as any` or `@ts-ignore` — type safety is required

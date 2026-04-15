@@ -9,13 +9,12 @@ Benchmarks validate Bi-Mamba's linear complexity advantage over Transformer. Abl
 
 ```
 scripts/benchmarks/
-├── benchmark_efficiency.py      # Bi-Mamba vs Transformer inference timing (203L)
-├── benchmark_transformer.py     # Standalone Transformer benchmark (92L)
-├── split_all.py                 # Split all datasets (ESOL/BBBP/ClinTox)
-├── split_evol.py                # ESOL-only data split (4L)
-├── split_data.sh                # Podman wrapper: split all via container
-├── train_evol_pooling.py        # ESOL pooling ablation (mean/max/cls)
-└── train_evol.sh                # Podman wrapper: run ESOL training
+├── benchmark_efficiency.py      # Bi-Mamba vs Transformer inference timing
+├── benchmark_transformer.py     # Standalone Transformer benchmark
+├── train_esol_pooling.py        # ESOL pooling ablation (mean/max/cls)
+├── split_esol.py               # ESOL-only data split
+├── split_all.py                 # Split all datasets (ESOL/BBBP/ClinTox/etc.)
+└── AGENTS.md
 ```
 
 ## Usage
@@ -42,14 +41,12 @@ python scripts/benchmarks/benchmark_transformer.py
 ### Data Splitting
 ```bash
 python scripts/benchmarks/split_all.py           # All datasets
-python scripts/benchmarks/split_evol.py          # ESOL only
-bash scripts/benchmarks/split_data.sh             # Podman wrapper
+python scripts/benchmarks/split_esol.py          # ESOL only
 ```
 
 ### Pooling Ablation
 ```bash
-python scripts/benchmarks/train_evol_pooling.py  # mean/max/cls comparison
-bash scripts/benchmarks/train_evol.sh             # Podman wrapper
+python scripts/benchmarks/train_esol_pooling.py  # mean/max/cls comparison
 ```
 
 ## Key Results

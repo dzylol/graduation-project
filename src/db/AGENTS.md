@@ -6,10 +6,10 @@
 ```
 src/db/
 ├── __init__.py
-├── database.py          # Database singleton, Molecule/Experiment dataclasses (145L)
-├── experiment_repo.py   # ExperimentRepository CRUD (251L)
+├── database.py          # Database singleton, Molecule/Experiment dataclasses
+├── experiment_repo.py   # ExperimentRepository CRUD
 ├── molecule_repo.py     # MoleculeRepository CRUD + dataset import
-└── database/            # (empty - do not use)
+└── AGENTS.md
 ```
 
 ## Key Classes
