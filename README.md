@@ -1,8 +1,8 @@
 # Bi-Mamba-Chem
 
-基于**双向 Mamba SSM** 的分子性质预测模型，支持回归、分类和多任务学习。O(N) 线性复杂度（vs Transformer 的 O(N²)），适合长序列分子（如蛋白质、聚合物）。
+基于**双向 Mamba SSM** 的分子性质预测模型，支持回归、分类任务。O(N) 线性复杂度（vs Transformer 的 O(N²)），适合长序列分子。
 
-> 核心模型见 [`mamba.tutorial.md`](./mamba.tutorial.md) —— 从零理解 Mamba SSM 的完整教程。
+> 核心模型见 [`mamba.tutorial.md`](./mamba.tutorial.md) —— Mamba SSM 完全入门指南。
 
 ---
 
@@ -25,19 +25,18 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/yourrepo/bi-mamba-chem.git
+git clone <your-repo-url>
 cd bi-mamba-chem
 
 # 2. 安装依赖
 pip install -r requirements.txt
+# 还需要安装 PyTorch（支持 MPS/CUDA）
+pip install torch torchvision
 
-# 3. 下载示例数据
-python download_datasets.py
+# 3. 开始训练（Mac GPU）
+python train.py --dataset ESOL --data_dir ./dataset/ESOL --epochs 100 --batch_size 16 --device mps
 
-# 4. 开始训练（Mac GPU）
-python train.py --dataset ESOL --device mps --epochs 100 --batch_size 16
-
-# 5. 运行测试
+# 4. 运行测试
 python -m pytest tests/ -v
 ```
 
@@ -46,7 +45,7 @@ python -m pytest tests/ -v
 | 场景 | 推荐配置 |
 |------|---------|
 | 快速实验 | Mac M1+/M2+（MPS），batch=16 |
-| 正式训练 | NVIDIA GPU（CUDA 11.8+），batch=32 |
+| 正式训练 | NVIDIA GPU（CUDA），batch=32 |
 | 长序列 | d_model=512, n_layers=6, batch=8 |
 
 ---
@@ -57,32 +56,67 @@ python -m pytest tests/ -v
 bi-mamba-chem/
 ├── src/
 │   ├── models/
-│   │   └── bimamba.py           # Bi-Mamba 模型（核心实现）
+│   │   ├── __init__.py
+│   │   ├── bimamba.py                    # 手动实现 SSM（无外部依赖）
+│   │   ├── bimamba_with_mamba_ssm.py     # mamba_ssm 包封装版本
+│   │   └── bimamba_with_mamba_ssm_architecture.md
 │   ├── data/
-│   │   └── molecule_dataset.py  # SMILES 数据集 + MoleculeTokenizer
-│   ├── db/                      # SQLite 实验追踪
-│   │   ├── database.py
-│   │   ├── experiment_repo.py
-│   │   └── molecule_repo.py
-│   └── visualization/           # 训练曲线、预测散点图、分子图
-│       ├── training_plots.py
-│       ├── prediction_plots.py
-│       ├── molecule_plots.py
-│       └── dashboard.py
+│   │   ├── __init__.py
+│   │   ├── tokenizer.py                  # SMILES 分词器
+│   │   ├── dataset.py                    # Dataset 基类
+│   │   ├── molecule_dataset.py           # MoleculeDataset + MoleculeTokenizer
+│   │   ├── dataloader.py                # create_data_loaders + LabelNormalizer
+│   │   ├── split.py                      # scaffold_split / random_split
+│   │   ├── column_mapping.py             # CSV 列名检测
+│   │   └── molecule_dataset_architecture.md
+│   ├── db/
+│   │   ├── __init__.py
+│   │   ├── database.py                  # SQLite 单例 + Dataclass 定义
+│   │   ├── experiment_repo.py           # ExperimentRepository CRUD
+│   │   └── molecule_repo.py              # MoleculeRepository CRUD
+│   ├── visualization/
+│   │   ├── __init__.py
+│   │   ├── dashboard.py                  # 多实验对比仪表盘
+│   │   ├── training_plots.py            # 训练曲线
+│   │   ├── prediction_plots.py           # 预测散点图
+│   │   └── molecule_plots.py             # RDKit 分子图
+│   └── shared/
+│       ├── __init__.py
+│       └── utils.py                      # 训练/评估参数解析、通用工具
 ├── tests/
-│   ├── test_model.py            # 模型前向/反向传播测试
-│   └── test_data.py             # 数据处理 + tokenization 测试
+│   ├── __init__.py
+│   ├── test_model.py                    # 模型前向/反向传播测试
+│   ├── test_data.py                     # 数据处理 + tokenization 测试
+│   └── test_column_detection.py         # CSV 列名检测测试
 ├── scripts/
-│   └── manage_experiments.py    # 实验 CRUD 命令行工具
-├── data/                        # MoleculeNet 数据集（下载后生成）
-│   ├── ESOL/                    # 水溶解度（回归）
-│   ├── BBBP/                    # 血脑屏障渗透（分类）
-│   └── ClinTox/                 # 药物毒性（分类）
-├── checkpoints/                 # 模型权重保存目录
-├── train.py                     # 单任务训练入口
-├── eval.py                      # 模型评估入口
-├── download_datasets.py         # 下载示例数据集
-├── mamba.tutorial.md            # Mamba SSM 完全入门指南
+│   ├── manage_experiments.py            # 实验 CRUD 命令行工具
+│   ├── batch_train_phase1.py            # 批量训练脚本（RTX 5060 Ti 优化）
+│   └── benchmarks/
+│       ├── benchmark_efficiency.py      # O(N) 效率基准测试
+│       ├── benchmark_transformer.py      # Transformer 对比基准测试
+│       ├── train_esol_pooling.py        # 不同 pooling 对比
+│       ├── split_esol.py                # ESOL 数据集划分
+│       └── split_all.py                 # 全数据集划分
+├── dataset/                             # MoleculeNet 数据集
+│   ├── ESOL/                           # 水溶解度（回归）
+│   ├── BBBP/                           # 血脑屏障渗透（分类）
+│   ├── ClinTox/                        # 药物毒性（分类）
+│   ├── FreeSolv/                      # 水合自由能（回归）
+│   ├── Lipophilicity/                 # 脂溶性（回归）
+│   ├── bace/                          # BACE 抑制剂（分类）
+│   ├── HIV/                           # HIV 感染性（分类）
+│   ├── SIDER/                         # 药物副作用（分类）
+│   ├── MUV/                           # MUV 数据集
+│   ├── ZINC250K/                      # ZINC250K（回归）
+│   ├── EGFR/                          # EGFR 抑制剂
+│   ├── mpro/                          # Mpro 抑制剂
+│   └── BDB2020+/                      # BindingDB 2020+
+├── checkpoints/                        # 模型权重保存目录
+├── logs/                               # 训练日志目录
+├── train.py                            # 单任务训练入口
+├── eval.py                             # 模型评估入口
+├── mamba.tutorial.md                   # Mamba SSM 完全入门指南
+├── requirements.txt                    # Python 依赖
 └── README.md
 ```
 
@@ -93,14 +127,18 @@ bi-mamba-chem/
 ### 依赖安装
 
 ```bash
-# 推荐：用 conda
-conda create -n bimamba python=3.10
-conda activate bimamba
-conda install pytorch torchvision torchaudio -c pytorch
-conda install rdkit pandas scikit-learn tqdm matplotlib -c conda-forge
-
-# 或用 pip
+# 基础依赖
 pip install -r requirements.txt
+
+# PyTorch（根据你的硬件选择）
+# Apple Silicon Mac
+pip install torch torchvision
+
+# NVIDIA GPU (CUDA 11.8+)
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# RDKit（强烈推荐用 conda 安装）
+conda install -c conda-forge rdkit -y
 ```
 
 ### 设备选择
@@ -119,29 +157,28 @@ python -c "import torch; print(f'MPS: {torch.backends.mps.is_available()}')"
 python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
 ```
 
-> **Mac 用户**：如果 MPS 不可用，确保用 conda 安装 PyTorch（pip 版本可能缺少 MPS 支持）。
->
-> ```bash
-> conda install pytorch torchvision torchaudio -c pytorch
-> ```
-
 ---
 
 ## 数据集
 
-### 下载示例数据
+### 已有数据集
 
-```bash
-python download_datasets.py
-```
+项目在 `dataset/` 目录下包含以下 MoleculeNet 数据集：
 
-会生成三个 MoleculeNet 子集：
-
-| 数据集 | 任务 | 分子数 | 评价指标 |
-|--------|------|--------|---------|
-| ESOL | 回归（水溶解度） | ~1,100 | RMSE, MAE |
-| BBBP | 分类（血脑屏障） | ~2,000 | ROC-AUC |
-| ClinTox | 分类（药物毒性） | ~1,500 | ROC-AUC |
+| 数据集 | 任务 | 分子数 | 类型 |
+|--------|------|--------|------|
+| ESOL | 回归（水溶解度） | ~1,100 | 回归 |
+| BBBP | 分类（血脑屏障） | ~2,000 | 分类 |
+| ClinTox | 分类（药物毒性） | ~1,500 | 分类 |
+| FreeSolv | 回归（水合自由能） | ~640 | 回归 |
+| Lipophilicity | 回归（脂溶性） | ~4,200 | 回归 |
+| bace | 分类（BACE 抑制剂） | ~1,500 | 分类 |
+| HIV | 分类（HIV 感染性） | ~40,000 | 分类 |
+| SIDER | 分类（药物副作用） | ~1,400 | 分类 |
+| MUV | 分类（MAV 验证） | ~35,000 | 分类 |
+| ZINC250K | 回归（溶解度） | ~250,000 | 回归 |
+| EGFR | 回归（EGFR 抑制剂） | ~5,000 | 回归 |
+| mpro | 回归（Mpro 抑制剂） | ~67,000 | 回归 |
 
 ### 数据格式
 
@@ -155,69 +192,19 @@ c1ccccc1,3.2
 O=C(C)Oc1ccccc1C=O,0.5
 ```
 
-### 多任务数据格式
+### 数据划分
 
-CSV 格式，`smiles` 列 + 多个任务列：
+支持两种划分策略：**随机划分** 和 **Scaffold 划分**：
 
-```csv
-smiles,solubility,toxicity,logp
-CCO,-2.5,0,1.3
-CC(=O)OC,-1.8,1,0.5
+```bash
+# 随机划分（默认）
+python train.py --dataset ESOL --split random --split_seed 42
+
+# Scaffold 划分（基于分子骨架）
+python train.py --dataset ESOL --split scaffold --split_seed 42
 ```
 
-### 数据分割（随机分割）
-
-支持每次实验使用不同的随机 seed 分割数据集，确保实验可复现且数据混合不同：
-
-```python
-from src.data.molecule_dataset import random_split_dataset, get_next_split_seed, get_current_split_seed
-
-# 方式1: 自动获取 seed（每次递增）
-seed = get_next_split_seed()  # 返回当前 seed 并自动递增
-train, val, test = random_split_dataset(
-    "dataset/ESOL/delaney.csv",
-    output_dir="dataset/ESOL/",
-    seed=seed
-)
-
-# 方式2: 指定 seed（可复现）
-train, val, test = random_split_dataset(
-    "dataset/ESOL/delaney.csv",
-    seed=42  # 相同 seed 产生相同分割
-)
-
-# 查看当前 seed（不递增）
-current_seed = get_current_split_seed()
-print(f"当前 seed: {current_seed}")
-```
-
-**分割参数**：
-```python
-random_split_dataset(
-    input_csv="dataset/ESOL/delaney.csv",
-    output_dir="dataset/ESOL/",  # 可选：保存到文件
-    train_ratio=0.8,              # 默认 0.8
-    val_ratio=0.1,              # 默认 0.1
-    test_ratio=0.1,             # 默认 0.1
-    seed=42,                    # 随机种子
-    n_jobs=None                 # None=使用全部 CPU 核心
-)
-```
-
-**seed 管理机制**：
-- seed 默认从 42 开始
-- `get_next_split_seed()` 获取当前 seed 并自动递增
-- seed 持久化在 `.split_seed` 文件中
-- 不同 seed 产生不同分割结果，方便做数据增强实验
-
-**多线程加速**：
-```python
-# 自动使用全部 CPU 核心（推荐）
-train, val, test = random_split_dataset("dataset/ZINC250K/...", n_jobs=None)
-
-# 指定线程数
-train, val, test = random_split_dataset("dataset/ZINC250K/...", n_jobs=8)
-```
+Scaffold 划分能更好地评估模型对未知分子骨架的泛化能力。
 
 ---
 
@@ -226,23 +213,24 @@ train, val, test = random_split_dataset("dataset/ZINC250K/...", n_jobs=8)
 ### 单任务训练
 
 ```bash
-# ESOL 回归
+# ESOL 回归（manual SSM，无外部依赖）
 python train.py \
     --dataset ESOL \
-    --data_dir ./data/ESOL \
+    --data_dir ./dataset/ESOL \
     --epochs 100 \
     --batch_size 16 \
     --device mps \
-    --learning_rate 1e-3
+    --model_type manual
 
-# BBBP 分类
+# BBBP 分类（使用 mamba_ssm 包）
 python train.py \
     --dataset BBBP \
-    --data_dir ./data/BBBP \
+    --data_dir ./dataset/BBBP \
     --task_type classification \
     --epochs 100 \
     --batch_size 16 \
-    --device mps
+    --device mps \
+    --model_type mamba_ssm
 ```
 
 ### 训练参数
@@ -250,9 +238,12 @@ python train.py \
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `--dataset` | 必需 | 数据集名称 |
-| `--data_dir` | `./data` | 数据目录 |
+| `--data_dir` | `./dataset` | 数据目录 |
+| `--model_type` | `manual` | `manual`（无依赖）或 `mamba_ssm`（需安装 mamba-ssm） |
 | `--task_type` | `regression` | `regression` 或 `classification` |
+| `--split` | `random` | `random` 或 `scaffold` |
 | `--d_model` | 256 | 模型维度 |
+| `--d_mamba` | 256 | Mamba 内部维度 |
 | `--n_layers` | 4 | Bi-Mamba 层数 |
 | `--pooling` | `mean` | `mean` / `max` / `cls` |
 | `--epochs` | 10 | 训练轮数 |
@@ -261,59 +252,20 @@ python train.py \
 | `--dropout` | 0.1 | Dropout 率 |
 | `--device` | `auto` | `cuda` / `mps` / `cpu` |
 | `--max_length` | 512 | 最大 SMILES 长度 |
-| `--db_path` | `interactive` | SQLite 数据库路径（`interactive` / `none`） |
+| `--db_path` | `interactive` | SQLite 数据库路径 |
+| `--single_file` | None | 单数据文件路径（自动划分 train/val/test） |
+
+### 模型类型
+
+| 类型 | 说明 | 依赖 |
+|------|------|------|
+| `manual` | 纯 PyTorch 手动实现 SSM，无外部依赖 | 无 |
+| `mamba_ssm` | 使用 `mamba-ssm` 包，高效 GPU 计算 | `pip install mamba-ssm` |
 
 ### 训练输出
 
-训练过程中会自动：
-
-- 打印每个 epoch 的 loss、验证指标
-- 保存验证集上最优的模型权重到 `checkpoints/`
-- 记录实验到 SQLite 数据库（默认启用）
-
-```
-checkpoints/
-└── ESOL_bi_mamba_epoch10_valLoss0.4521.pt
-```
-
-### 超参数参考
-
-| 场景 | d_model | n_layers | batch_size | lr | epochs |
-|------|---------|---------|-----------|-----|--------|
-| 默认（Mac） | 256 | 4 | 16 | 1e-3 | 100 |
-| 长序列分子 | 512 | 6 | 8 | 5e-5 | 100 |
-| 小数据集 | 128 | 2 | 8 | 1e-4 | 200 |
-
-### RTX 4060 8GB 推荐配置
-
-**推荐数据集: ESOL**（数据量小 ~1,128 样本，训练快，显存占用低）
-
-```bash
-python train.py --dataset ESOL --device cuda --batch_size 32 --epochs 100 --learning_rate 1e-3
-```
-
-| 设置 | 推荐值 | 说明 |
-|------|--------|------|
-| batch_size | 32-64 | 8GB 显存足够 |
-| 学习率 | 1e-3 ~ 5e-4 | 初始学习率 |
-| 梯度裁剪 | `clip_grad_norm_(model.parameters(), 1.0)` | 防止梯度爆炸 |
-| 混合精度 | 可选 (`torch.cuda.amp`) | 进一步节省显存 |
-
-**如遇 OOM（显存不足）**：
-- 降低 `batch_size` 到 16 或 8
-- 使用 `torch.inference_mode()` 验证
-- 减小模型 `d_model` 到 128 或 `n_layers` 到 2
-
-### 分布式训练（多 GPU）
-
-```bash
-# 单机多卡（PyTorch DDP）
-torchrun --nproc_per_node=4 train.py \
-    --dataset ESOL \
-    --epochs 100 \
-    --batch_size 32 \
-    --device cuda
-```
+- 模型权重保存到 `checkpoints/{dataset}_bi_mamba_best.pt`
+- 训练日志保存到 `logs/{dataset}_{model_type}_{timestamp}.json`
 
 ---
 
@@ -325,7 +277,7 @@ torchrun --nproc_per_node=4 train.py \
 python eval.py \
     --checkpoint checkpoints/ESOL_bi_mamba_best.pt \
     --dataset ESOL \
-    --data_dir ./data/ESOL \
+    --data_dir ./dataset/ESOL \
     --test_file test.csv \
     --device mps
 ```
@@ -334,34 +286,14 @@ python eval.py \
 
 | 任务 | 主要指标 | 其他指标 |
 |------|---------|---------|
-| 回归 | RMSE | MAE, MSE |
-| 分类 | ROC-AUC | Accuracy, F1 |
+| 回归 | RMSE | MAE, MSE, RMSE_orig |
+| 分类 | ROC-AUC | Accuracy |
 
 ---
 
 ## 实验追踪
 
-项目使用 SQLite 自动记录每次训练实验，方便对比和复现。
-
-### 数据库位置
-
-```
-src/db/
-└── experiments.db
-```
-
-### 交互式选择数据库
-
-```bash
-# 交互式选择（默认）— 列出所有 .db 文件
-python train.py --dataset ESOL
-
-# 指定数据库
-python train.py --dataset ESOL --db_path ./src/db/my_exp.db
-
-# 禁用数据库
-python train.py --dataset ESOL --db_path none
-```
+项目使用 SQLite 自动记录每次训练实验。
 
 ### 管理实验
 
@@ -397,16 +329,19 @@ python scripts/manage_experiments.py --delete 5
 ### 训练曲线
 
 ```python
-from src.visualization.training_plots import plot_experiment_training
+from src.visualization import plot_training_curves
 
-# 从数据库加载并绘图
-fig = plot_experiment_training(exp_id=1, save_path="training.png")
+# 从日志文件加载并绘图
+plot_training_curves(
+    logs="logs/ESOL_manual_2026-04-14_21-44-19.json",
+    save_path="training.png"
+)
 ```
 
 ### 预测散点图
 
 ```python
-from src.visualization.prediction_plots import plot_prediction_scatter
+from src.visualization import plot_prediction_scatter
 
 plot_prediction_scatter(
     y_true=y_true,
@@ -419,7 +354,7 @@ plot_prediction_scatter(
 ### 分子结构图
 
 ```python
-from src.visualization.molecule_plots import draw_molecule, plot_molecule_grid
+from src.visualization import draw_molecule, plot_molecule_grid
 
 # 单个分子
 draw_molecule("CCO", legend="Ethanol", save_path="ethanol.png")
@@ -432,10 +367,13 @@ plot_molecule_grid(smiles_list, mols_per_row=3, save_path="molecules.png")
 ### 实验仪表盘
 
 ```python
-from src.visualization.dashboard import create_dashboard_from_db
+from src.visualization import create_experiment_dashboard
 
 # 综合对比面板
-create_dashboard_from_db(exp_ids=[1, 2, 3], save_path="dashboard.png")
+create_experiment_dashboard(
+    experiments=[exp1, exp2, exp3],
+    save_path="dashboard.png"
+)
 ```
 
 ---
@@ -453,6 +391,9 @@ python -m pytest tests/test_model.py -v
 
 # 单个测试函数
 python -m pytest tests/test_data.py::test_tokenization -v
+
+# 直接运行（无需 pytest）
+python tests/test_model.py
 ```
 
 ### 测试覆盖报告
@@ -460,16 +401,6 @@ python -m pytest tests/test_data.py::test_tokenization -v
 ```bash
 pip install pytest pytest-cov
 python -m pytest tests/ --cov=src --cov-report=term-missing
-```
-
-### 快速验证
-
-```bash
-# 模型前向传播
-python tests/test_model.py
-
-# 数据处理
-python tests/test_data.py
 ```
 
 ---
@@ -497,21 +428,15 @@ python train.py --batch_size 4
 
 # 减小模型维度
 python train.py --d_model 128 --n_layers 2
-
-# 梯度累积
-python train.py --batch_size 4 --gradient_accumulation_steps 4
 ```
 
 ### MPS 不可用（Mac）
 
 ```bash
-# 确认 PyTorch 版本支持 MPS
-python -c "import torch; print(torch.backends.mps.is_available())"
-
-# 如果不行，用 conda 重装
+# 用 conda 安装 PyTorch（推荐）
 conda install pytorch torchvision torchaudio -c pytorch
 
-# 或者用 CPU 调试
+# 或用 CPU 调试
 python train.py --device cpu --batch_size 4
 ```
 
@@ -520,9 +445,6 @@ python train.py --device cpu --batch_size 4
 ```bash
 # 用 conda（推荐）
 conda install -c conda-forge rdkit -y
-
-# 或 pip
-pip install rdkit-pypi
 ```
 
 ---
