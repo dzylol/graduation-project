@@ -31,22 +31,8 @@ def get_device() -> str:
 
 
 def parse_train_args() -> argparse.Namespace:
-    """
-    解析命令行参数
-
-    使用 argparse 模块解析命令行参数，方便调整训练配置。
-
-    参数说明：
-    - 数据参数：数据集路径、文件名称
-    - 模型参数：维度、层数、任务类型等
-    - 训练参数：轮数、批大小、学习率等
-    - 其他：设备、随机种子、输出路径等
-    """
+    """Parse command-line arguments for training."""
     parser = argparse.ArgumentParser(description="训练 BiMamba 分子性质预测模型")
-
-    # -------------------------------------------------------------------------
-    # 数据参数
-    # -------------------------------------------------------------------------
     parser.add_argument(
         "--dataset",
         type=str,
@@ -87,9 +73,7 @@ def parse_train_args() -> argparse.Namespace:
         help="单数据文件路径（如 delaney.csv），与 train_file 互斥",
     )
 
-    # -------------------------------------------------------------------------
-    # 模型参数
-    # -------------------------------------------------------------------------
+    # Model arguments
     parser.add_argument(
         "--model_type",
         type=str,
@@ -116,10 +100,16 @@ def parse_train_args() -> argparse.Namespace:
     )
     parser.add_argument("--num_labels", type=int, default=1, help="输出标签数量")
     parser.add_argument("--dropout", type=float, default=0.1, help="Dropout 比率")
+    parser.add_argument("--bidirectional", action="store_true", help="启用双向 SSM（默认开启）")
+    parser.add_argument(
+        "--no-bidirectional",
+        dest="bidirectional",
+        action="store_false",
+        help="禁用双向 SSM（单向）",
+    )
+    parser.set_defaults(bidirectional=True)
 
-    # -------------------------------------------------------------------------
-    # 训练参数
-    # -------------------------------------------------------------------------
+    # Training arguments
     parser.add_argument("--epochs", type=int, default=10, help="训练轮数")
     parser.add_argument("--batch_size", type=int, default=32, help="批大小")
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="学习率")
@@ -138,9 +128,7 @@ def parse_train_args() -> argparse.Namespace:
         help="梯度裁剪的最大范数",
     )
 
-    # -------------------------------------------------------------------------
-    # 其他参数
-    # -------------------------------------------------------------------------
+    # Other arguments
     parser.add_argument(
         "--device",
         type=str,
@@ -181,14 +169,10 @@ def parse_train_args() -> argparse.Namespace:
 
 
 def parse_eval_args() -> argparse.Namespace:
-    """
-    解析命令行参数
-    """
+    """Parse command-line arguments for evaluation."""
     parser = argparse.ArgumentParser(description="评估 BiMamba 分子性质预测模型")
 
-    # -------------------------------------------------------------------------
-    # 数据参数
-    # -------------------------------------------------------------------------
+    # Data arguments
     parser.add_argument(
         "--dataset",
         type=str,
@@ -203,9 +187,7 @@ def parse_eval_args() -> argparse.Namespace:
     )
     parser.add_argument("--test_file", type=str, default="test.csv", help="测试数据文件名")
 
-    # -------------------------------------------------------------------------
-    # 模型参数（需要与训练时保持一致）
-    # -------------------------------------------------------------------------
+    # Model arguments
     parser.add_argument("--checkpoint", type=str, required=True, help="模型检查点路径")
     parser.add_argument(
         "--model_type",
@@ -233,9 +215,7 @@ def parse_eval_args() -> argparse.Namespace:
     parser.add_argument("--num_labels", type=int, default=1, help="输出标签数量")
     parser.add_argument("--dropout", type=float, default=0.1, help="Dropout 比率")
 
-    # -------------------------------------------------------------------------
-    # 其他参数
-    # -------------------------------------------------------------------------
+    # Other arguments
     parser.add_argument(
         "--device",
         type=str,
@@ -262,19 +242,7 @@ def evaluate(
     args: argparse.Namespace,
     normalizer: Optional[object] = None,
 ) -> Dict[str, float]:
-    """
-    在验证/测试集上评估模型
-
-    Args:
-        model: 待评估的模型
-        data_loader: 数据加载器
-        device: 计算设备
-        args: 命令行参数
-        normalizer: LabelNormalizer for denormalizing regression predictions (optional)
-
-    Returns:
-        评估指标字典
-    """
+    """Evaluate model on validation/test set."""
     logger = logging.getLogger(__name__)
     model.eval()
     total_loss = 0.0
@@ -308,14 +276,11 @@ def evaluate(
     metrics: Dict[str, float] = {"loss": total_loss / num_batches}
 
     if args.task_type == "regression":
-        # Data loader returns NORMALIZED labels (via NormalizedDataset wrapper).
-        # Compute metrics in normalized space first.
         mae = torch.mean(torch.abs(all_preds - all_labels)).item()
         mse = torch.mean((all_preds - all_labels) ** 2).item()
         rmse = torch.sqrt(torch.tensor(mse)).item()
         metrics.update({"mae": mae, "mse": mse, "rmse": rmse})
 
-        # Also compute RMSE in original scale if normalizer provided.
         if normalizer is not None and hasattr(normalizer, "inverse_transform"):
             preds_orig = normalizer.inverse_transform(all_preds.numpy())
             labels_orig = normalizer.inverse_transform(all_labels.numpy())
@@ -323,7 +288,6 @@ def evaluate(
             mae_orig = np.mean(np.abs(preds_orig - labels_orig))
             metrics.update({"rmse_orig": rmse_orig, "mae_orig": mae_orig})
     else:
-        # Classification metrics
         if args.num_labels == 1:
             preds_prob = torch.sigmoid(all_preds).numpy()
             preds_label = (preds_prob > 0.5).astype(int)

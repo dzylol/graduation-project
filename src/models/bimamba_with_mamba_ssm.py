@@ -266,6 +266,7 @@ class BiMambaEncoder(nn.Module):
         max_seq_length: int = 512,
         dropout: float = 0.1,
         pad_token_id: int = 0,
+        bidirectional: bool = True,
         device: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
     ):
@@ -278,6 +279,7 @@ class BiMambaEncoder(nn.Module):
         self.n_layers = n_layers
         self.max_seq_length = max_seq_length
         self.pad_token_id = pad_token_id
+        self.bidirectional = bidirectional
 
         # Embedding uses d_model (smaller, fewer params)
         self.token_embedding = nn.Embedding(
@@ -290,10 +292,12 @@ class BiMambaEncoder(nn.Module):
 
         # Forward/backward layers use d_mamba (satisfies Triton stride requirement)
         self.forward_layers = self._make_layers(d_mamba, d_state, d_conv, expand, factory_kwargs)
-        self.backward_layers = self._make_layers(d_mamba, d_state, d_conv, expand, factory_kwargs)
+        if bidirectional:
+            self.backward_layers = self._make_layers(
+                d_mamba, d_state, d_conv, expand, factory_kwargs
+            )
+            self.fusion_gate = nn.Linear(d_mamba * 2, d_mamba * 2, **factory_kwargs)
 
-        # Fusion gate uses d_mamba
-        self.fusion_gate = nn.Linear(d_mamba * 2, d_mamba * 2, **factory_kwargs)
         self.norm = nn.LayerNorm(d_mamba, **factory_kwargs)
 
         # Project back from d_mamba to d_model for output
@@ -388,17 +392,19 @@ class BiMambaEncoder(nn.Module):
         for layer in self.forward_layers:
             forward_hidden = layer(forward_hidden)
 
-        backward_hidden = torch.flip(hidden_states, dims=[1])
-        for layer in self.backward_layers:
-            backward_hidden = layer(backward_hidden)
-        backward_hidden = torch.flip(backward_hidden, dims=[1])
+        if self.bidirectional:
+            backward_hidden = torch.flip(hidden_states, dims=[1])
+            for layer in self.backward_layers:
+                backward_hidden = layer(backward_hidden)
+            backward_hidden = torch.flip(backward_hidden, dims=[1])
 
-        combined = torch.cat([forward_hidden, backward_hidden], dim=-1)
-        gate = torch.sigmoid(self.fusion_gate(combined))
-        gate_forward, gate_backward = gate.chunk(2, dim=-1)
-        fused_hidden = gate_forward * forward_hidden + gate_backward * backward_hidden
+            combined = torch.cat([forward_hidden, backward_hidden], dim=-1)
+            gate = torch.sigmoid(self.fusion_gate(combined))
+            gate_forward, gate_backward = gate.chunk(2, dim=-1)
+            fused_hidden = gate_forward * forward_hidden + gate_backward * backward_hidden
+        else:
+            fused_hidden = forward_hidden
 
-        # Project back from d_mamba to d_model
         fused_hidden = self.output_proj(self.norm(fused_hidden))
         return fused_hidden
 
@@ -448,6 +454,7 @@ class BiMambaForPropertyPrediction(nn.Module):
         pooling: str = "mean",
         dropout: float = 0.1,
         pad_token_id: int = 0,
+        bidirectional: bool = True,
         device: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
     ):
@@ -470,6 +477,7 @@ class BiMambaForPropertyPrediction(nn.Module):
             max_seq_length=max_seq_length,
             dropout=dropout,
             pad_token_id=pad_token_id,
+            bidirectional=bidirectional,
             **factory_kwargs,
         )
 

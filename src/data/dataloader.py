@@ -176,11 +176,13 @@ def create_data_loaders(
 
     if train_dataset_name:
         train_loader = make_db_loader(train_dataset_name, is_train=True)
-    else:
+    elif train_path:
         assert train_path is not None, "train_path required when train_dataset_name not provided"
         train_loader = make_file_loader(train_path, is_train=True)
+    else:
+        train_loader = None
 
-    if normalize and task_type == "regression":
+    if normalize and task_type == "regression" and train_loader is not None:
         normalizer = LabelNormalizer()
         train_labels = []
         for _, labels in train_loader:

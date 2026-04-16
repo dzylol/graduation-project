@@ -269,7 +269,7 @@ def detect_column_mapping(df: pd.DataFrame, dataset_name: Optional[str] = None) 
 
     # 2. RDKit validation (sample first 20 rows)
     for col in df.columns:
-        if df[col].dtype == object:
+        if pd.api.types.is_object_dtype(df[col]) or pd.api.types.is_string_dtype(df[col]):
             sample = df[col].dropna().astype(str).head(20)
             valid_count = sum(validate_smiles_internal(s) for s in sample)
             if valid_count >= 16:  # >80%
@@ -433,15 +433,14 @@ class MoleculeDataset(Dataset):
         file_extension = (
             data_file_path[data_file_path.rfind(".") :] if "." in data_file_path else ""
         )
-        match file_extension:
-            case ".csv":
-                data = self.load_csv_internal(data_file_path)
-            case ".json":
-                data = self.load_json_internal(data_file_path)
-            case ".txt":
-                data = self.load_txt_internal(data_file_path)
-            case _:
-                raise ValueError(f"Unsupported file format: {data_file_path}")
+        if file_extension == ".csv":
+            data = self.load_csv_internal(data_file_path)
+        elif file_extension == ".json":
+            data = self.load_json_internal(data_file_path)
+        elif file_extension == ".txt":
+            data = self.load_txt_internal(data_file_path)
+        else:
+            raise ValueError(f"Unsupported file format: {data_file_path}")
         if self.validate_smiles:
             original_len = len(data)
             data = [item for item in data if validate_smiles_internal(item.smiles)]

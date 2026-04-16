@@ -146,7 +146,7 @@ def detect_column_mapping(df: pd.DataFrame, dataset_name: Optional[str] = None) 
 
     # 2. RDKit validation (sample first 20 rows)
     for col in df.columns:
-        if df[col].dtype == object:
+        if pd.api.types.is_object_dtype(df[col]) or pd.api.types.is_string_dtype(df[col]):
             sample = df[col].dropna().astype(str).head(20)
             valid_count = sum(validate_smiles_internal(s) for s in sample)
             if valid_count >= 16:  # >80%

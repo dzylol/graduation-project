@@ -1,28 +1,7 @@
 #!/usr/bin/env python3
 """
 Bi-Mamba 模型训练脚本
-
-本脚本用于训练 Bi-Mamba 分子性质预测模型。
-
-训练流程：
-1. 加载数据
-2. 创建模型
-3. 训练循环（多轮 epoch）
-4. 评估模型
-5. 保存模型
-
-使用方法：
-```bash
-python train.py --dataset ESOL --epochs 100 --batch_size 32 --device cuda --model_type manual
-python train.py --dataset ESOL --epochs 100 --batch_size 32 --device cuda --model_type mamba_ssm
-```
-
-作者: Bi-Mamba-Chem Team
 """
-
-# ============================================================================
-# 导入必要的库
-# ============================================================================
 
 import argparse
 import atexit
@@ -42,8 +21,6 @@ from torch.amp import GradScaler
 from torch.utils.data import DataLoader
 
 from src.db import ExperimentRepository
-
-# 导入本地模块
 from src.models.bimamba import BiMambaForPropertyPrediction as BiMambaManual
 from src.models.bimamba import create_bimamba_model as create_bimamba_manual
 from src.models.bimamba_with_mamba_ssm import (
@@ -51,6 +28,9 @@ from src.models.bimamba_with_mamba_ssm import (
 )
 from src.models.bimamba_with_mamba_ssm import (
     create_bimamba_model as create_bimamba_mamba_ssm,
+)
+from src.models.vanilla_transformer import (
+    VanillaTransformerForPropertyPrediction as TransformerModel,
 )
 from src.data import (
     MoleculeDataset,
@@ -62,57 +42,26 @@ from src.data.column_mapping import detect_column_mapping
 from src.data.split import select_database
 from src.shared.utils import parse_train_args
 
-# ============================================================================
-# 日志配置
-# ============================================================================
-
-# 配置日志格式和输出
 logging.basicConfig(
-    level=logging.INFO,  # 日志级别
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # 格式
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("training.log"),  # 保存到文件
-        logging.StreamHandler(),  # 输出到终端
+        logging.FileHandler("training.log"),
+        logging.StreamHandler(),
     ],
 )
-logger = logging.getLogger(__name__)  # 获取日志记录器
-
-
-# ============================================================================
-# 辅助函数
-# ============================================================================
+logger = logging.getLogger(__name__)
 
 
 def set_seed(seed: int):
-    """
-    设置随机种子
-
-    确保实验可重复性。使用相同的种子，每次训练结果应该相同。
-
-    Args:
-        seed: 随机种子值
-    """
-    torch.manual_seed(seed)  # CPU 随机种子
-    torch.cuda.manual_seed_all(seed)  # GPU 随机种子
-    torch.backends.cudnn.deterministic = True  # CUDNN 使用确定性算法
-    torch.backends.cudnn.benchmark = False  # 禁用 CUDNN 基准测试
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def get_device(device_str: str) -> torch.device:
-    """
-    获取设备
-
-    根据用户指定和可用性选择最佳设备。
-    优先级：CUDA GPU > Apple MPS > CPU
-
-    Args:
-        device_str: 设备字符串
-
-    Returns:
-        torch.device 对象
-    """
     if device_str == "auto":
-        # 自动选择
         if torch.cuda.is_available():
             return torch.device("cuda")
         elif torch.backends.mps.is_available():
@@ -121,11 +70,6 @@ def get_device(device_str: str) -> torch.device:
             return torch.device("cpu")
     else:
         return torch.device(device_str)
-
-
-# ============================================================================
-# 训练和评估函数
-# ============================================================================
 
 
 def train_epoch(
@@ -138,27 +82,6 @@ def train_epoch(
     args: argparse.Namespace,
     scaler: Optional[GradScaler] = None,
 ) -> float:
-    """
-    训练一个 epoch（一个完整的数据遍历）
-
-    训练步骤：
-    1. 前向传播：计算预测值和损失
-    2. 反向传播：计算梯度
-    3. 参数更新：使用优化器更新模型参数
-
-    Args:
-        model: 待训练的模型
-        train_loader: 训练数据加载器
-        optimizer: 优化器
-        scheduler: 学习率调度器
-        device: 计算设备
-        epoch: 当前轮数
-        args: 命令行参数
-        scaler: AMP GradScaler for mixed precision training
-
-    Returns:
-        平均损失值
-    """
     model.train()
     total_loss = 0.0
     num_batches = 0
@@ -223,19 +146,6 @@ def evaluate(
     args: argparse.Namespace,
     normalizer: Optional[object] = None,
 ) -> Dict[str, float]:
-    """
-    在验证集上评估模型
-
-    Args:
-        model: 待评估的模型
-        val_loader: 验证数据加载器
-        device: 计算设备
-        args: 命令行参数
-        normalizer: LabelNormalizer for denormalizing regression predictions (optional)
-
-    Returns:
-        评估指标字典
-    """
     model.eval()
     total_loss = 0.0
     num_batches = 0
@@ -318,71 +228,36 @@ def evaluate(
     return metrics
 
 
-# ============================================================================
-# 主函数
-# ============================================================================
-
-
-
-
 def log_experiment_to_json(experiment_data, filepath):
     def convert_to_native(obj):
         if isinstance(obj, dict):
             return {k: convert_to_native(v) for k, v in obj.items()}
         elif isinstance(obj, list):
             return [convert_to_native(i) for i in obj]
-        elif hasattr(obj, 'item'):  # numpy types
+        elif hasattr(obj, "item"):
             return obj.item()
-        elif hasattr(obj, '__float__') and not isinstance(obj, (int, float, str, bool, type(None))):
+        elif hasattr(obj, "__float__") and not isinstance(obj, (int, float, str, bool, type(None))):
             return float(obj)
         return obj
-    with open(filepath, 'w') as f:
+
+    with open(filepath, "w") as f:
         json.dump(convert_to_native(experiment_data), f, indent=2)
 
+
 def main():
-    """
-    主训练函数
-
-    完整的训练流程：
-    1. 解析参数
-    2. 设置设备和随机种子
-    3. 加载数据
-    4. 创建模型
-    5. 训练循环
-    6. 评估和保存
-    """
-    # -------------------------------------------------------------------------
-    # 1. 解析参数
-    # -------------------------------------------------------------------------
     args = parse_train_args()
-
-    # -------------------------------------------------------------------------
-    # 2. 设置随机种子
-    # -------------------------------------------------------------------------
     set_seed(args.seed)
-
-    # -------------------------------------------------------------------------
-    # 3. 获取设备
-    # -------------------------------------------------------------------------
     device = get_device(args.device)
     logger.info(f"使用设备: {device}")
 
-    # -------------------------------------------------------------------------
-    # 4. 创建输出目录
-    # -------------------------------------------------------------------------
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # -------------------------------------------------------------------------
-    # 5. 保存训练参数
-    # -------------------------------------------------------------------------
-    # Create logs directory and experiment log file
     logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
     os.makedirs(logs_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_filename = f"{args.dataset}_{args.model_type}_{timestamp}.json"
     log_filepath = os.path.join(logs_dir, log_filename)
-    
-    # Initialize experiment data structure
+
     experiment_data = {
         "experiment_info": {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -397,23 +272,16 @@ def main():
         "data_info": {},
         "training_results": {},
     }
-    
+
     with open(os.path.join(args.output_dir, "args.json"), "w") as f:
         json.dump(vars(args), f, indent=2)
 
-    # -------------------------------------------------------------------------
-    # 6. 加载数据
-    # -------------------------------------------------------------------------
     train_path = os.path.join(args.data_dir, args.train_file)
     val_path = os.path.join(args.data_dir, args.val_file) if args.val_file else None
     test_path = os.path.join(args.data_dir, args.test_file) if args.test_file else None
 
-    # 检查是否使用单文件+运行时划分
     if args.single_file:
         single_path = os.path.join(args.data_dir, args.single_file)
-
-        # Use persistent temp dir inside data_dir (not tempfile.TemporaryDirectory)
-        # to avoid deletion while loaders still reference files
         import tempfile
 
         tmpdir = os.path.join(args.data_dir, f".tmp_split_{os.getpid()}")
@@ -460,8 +328,6 @@ def main():
                 experiment_data["data_info"]["val_samples"] = len(val_loader.dataset)
             if test_loader:
                 experiment_data["data_info"]["test_samples"] = len(test_loader.dataset)
-            # Clean up temp dir only after training is done (deferred to end of script)
-            pass
     else:
         logger.info(f"从 {args.data_dir} 加载数据")
         train_loader, val_loader, test_loader, normalizer = create_data_loaders(
@@ -482,9 +348,11 @@ def main():
             experiment_data["data_info"]["test_samples"] = len(test_loader.dataset)
     if normalizer:
         logger.info(f"Z-score 归一化: mean={normalizer.mean:.4f}, std={normalizer.std:.4f}")
-        experiment_data["data_info"]["normalization"] = {"mean": float(normalizer.mean), "std": float(normalizer.std)}
+        experiment_data["data_info"]["normalization"] = {
+            "mean": float(normalizer.mean),
+            "std": float(normalizer.std),
+        }
 
-    # 从数据集获取词汇表信息
     dataset_for_vocab = train_loader.dataset.base_dataset if normalizer else train_loader.dataset
     vocab_size = dataset_for_vocab.get_vocab_size()
     pad_token_id = dataset_for_vocab.get_pad_token_id()
@@ -492,9 +360,6 @@ def main():
     experiment_data["data_info"]["vocab_size"] = vocab_size
     experiment_data["data_info"]["max_length"] = args.max_length
 
-    # -------------------------------------------------------------------------
-    # 7. 初始化实验追踪数据库
-    # -------------------------------------------------------------------------
     exp_repo = None
     exp_id = None
     if not args.no_db:
@@ -531,9 +396,6 @@ def main():
         )
         logger.info(f"创建实验记录: ID={exp_id}, 名称={exp_name}")
 
-    # -------------------------------------------------------------------------
-    # 8. 创建模型
-    # -------------------------------------------------------------------------
     if args.model_type == "manual":
         logger.info("创建 BiMamba 模型 (manual SSM, 无外部依赖)")
         model = create_bimamba_manual(
@@ -542,6 +404,21 @@ def main():
             n_layers=args.n_layers,
             task_type=args.task_type,
             num_labels=args.num_labels,
+            pooling=args.pooling,
+            dropout=args.dropout,
+            pad_token_id=pad_token_id,
+        )
+    elif args.model_type == "transformer":
+        logger.info("创建 VanillaTransformer 模型")
+        model = TransformerModel(
+            vocab_size=vocab_size,
+            d_model=args.d_model,
+            n_layers=args.n_layers,
+            n_heads=8,
+            d_ffn=args.d_model * 2,
+            max_seq_length=args.max_length,
+            num_labels=args.num_labels,
+            task_type=args.task_type,
             pooling=args.pooling,
             dropout=args.dropout,
             pad_token_id=pad_token_id,
@@ -558,6 +435,7 @@ def main():
             pooling=args.pooling,
             dropout=args.dropout,
             pad_token_id=pad_token_id,
+            bidirectional=args.bidirectional,
         )
     model = model.to(device)
 
@@ -565,9 +443,6 @@ def main():
     if scaler:
         logger.info("启用混合精度训练 (AMP)")
 
-    # -------------------------------------------------------------------------
-    # 8. 打印模型信息
-    # -------------------------------------------------------------------------
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"总参数数量: {total_params:,}")
@@ -582,10 +457,6 @@ def main():
         "trainable_params": trainable_params,
     }
 
-    # -------------------------------------------------------------------------
-    # 9. 创建优化器和学习率调度器
-    # -------------------------------------------------------------------------
-    # Log training params
     experiment_data["training_params"] = {
         "epochs": args.epochs,
         "batch_size": args.batch_size,
@@ -597,27 +468,18 @@ def main():
         "device": str(device),
         "seed": args.seed,
     }
-    
+
     optimizer = optim.AdamW(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
 
-    # 学习率调度器（带预热）
     total_steps = len(train_loader) * args.epochs // args.gradient_accumulation_steps
     warmup_steps = len(train_loader) * args.warmup_epochs // args.gradient_accumulation_steps
 
     def lr_lambda(current_step):
-        """
-        学习率调度函数
-
-        前 warmup_steps 步线性增加学习率，
-        之后线性衰减。
-        """
         if current_step < warmup_steps:
-            # 预热阶段：线性增加
             return float(current_step) / float(max(1, warmup_steps))
         else:
-            # 衰减阶段：线性减少
             return max(
                 0.0,
                 float(total_steps - current_step) / float(max(1, total_steps - warmup_steps)),
@@ -625,9 +487,6 @@ def main():
 
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
-    # -------------------------------------------------------------------------
-    # 10. 训练循环
-    # -------------------------------------------------------------------------
     logger.info("开始训练")
     best_val_loss = float("inf")
     best_model_path = os.path.join(args.output_dir, f"{args.dataset}_bi_mamba_best.pt")
@@ -635,35 +494,26 @@ def main():
     for epoch in range(args.epochs):
         start_time = time.time()
 
-        # 训练一个 epoch
         train_loss = train_epoch(
             model, train_loader, optimizer, scheduler, device, epoch, args, scaler
         )
 
-        # 在验证集上评估
         val_metrics = (
             evaluate(model, val_loader, device, args, normalizer) if val_loader else {"loss": 0.0}
         )
 
         epoch_time = time.time() - start_time
 
-        # -------------------------------------------------------------------------
-        # 11. 记录结果
-        # -------------------------------------------------------------------------
         logger.info(
             f"Epoch {epoch + 1}/{args.epochs} 完成，耗时 {epoch_time:.2f}s | "
             f"训练损失: {train_loss:.6f} | "
             f"验证损失: {val_metrics['loss']:.6f}"
         )
 
-        # 打印其他指标
         for key, value in val_metrics.items():
             if key != "loss":
                 logger.info(f"  验证 {key.upper()}: {value:.6f}")
 
-        # -------------------------------------------------------------------------
-        # 11. 记录到数据库
-        # -------------------------------------------------------------------------
         if exp_repo and exp_id is not None:
             epoch_log = {
                 "epoch": epoch + 1,
@@ -674,9 +524,6 @@ def main():
             }
             exp_repo.append_training_log(exp_id, epoch_log)
 
-        # -------------------------------------------------------------------------
-        # 12. 保存最佳模型
-        # -------------------------------------------------------------------------
         if val_metrics["loss"] < best_val_loss:
             best_val_loss = val_metrics["loss"]
             torch.save(
@@ -692,10 +539,11 @@ def main():
             )
             logger.info(f"保存最佳模型到 {best_model_path}")
 
-        # -------------------------------------------------------------------------
-        # 13. 定期保存检查点
-        # -------------------------------------------------------------------------
-        if (epoch + 1) % (args.save_interval // len(train_loader)) == 0:
+        batches_per_epoch = len(train_loader)
+        save_every_n_epochs = (
+            max(1, args.save_interval // batches_per_epoch) if args.save_interval > 0 else 0
+        )
+        if save_every_n_epochs > 0 and (epoch + 1) % save_every_n_epochs == 0:
             checkpoint_path = os.path.join(
                 args.output_dir, f"{args.dataset}_bi_mamba_epoch_{epoch + 1}.pt"
             )
@@ -711,9 +559,6 @@ def main():
             )
             logger.info(f"保存检查点到 {checkpoint_path}")
 
-    # -------------------------------------------------------------------------
-    # 14. 最终测试
-    # -------------------------------------------------------------------------
     test_metrics = {}
     if test_loader:
         logger.info("在测试集上评估")
@@ -722,9 +567,6 @@ def main():
         for key, value in test_metrics.items():
             logger.info(f"  {key.upper()}: {value:.6f}")
 
-    # -------------------------------------------------------------------------
-    # 15. 更新数据库记录
-    # -------------------------------------------------------------------------
     if exp_repo and exp_id is not None:
         final_metrics = {
             "best_val_loss": best_val_loss,
@@ -745,15 +587,13 @@ def main():
     experiment_data["training_results"]["test_rmse"] = test_metrics.get("rmse", 0)
     experiment_data["training_results"]["test_rmse_orig"] = test_metrics.get("rmse_orig", 0)
     experiment_data["training_results"]["test_mae_orig"] = test_metrics.get("mae_orig", 0)
-    
+    experiment_data["training_results"]["test_auc"] = test_metrics.get("auc", 0)
+    experiment_data["training_results"]["test_accuracy"] = test_metrics.get("accuracy", 0)
+
     log_experiment_to_json(experiment_data, log_filepath)
     logger.info("训练完成！")
     logger.info(f"实验日志已保存到 {log_filepath}")
 
-
-# ============================================================================
-# 程序入口
-# ============================================================================
 
 if __name__ == "__main__":
     _cleanup_done = [False]
