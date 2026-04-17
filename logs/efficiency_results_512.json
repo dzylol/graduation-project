@@ -1,22 +1,22 @@
 {
   "config": {
-    "batch_size": 16,
+    "batch_size": 32,
     "seq_length": 512,
-    "n_iterations": 50,
+    "n_iterations": 30,
     "device": "cuda"
   },
   "bimamba": {
-    "avg_time_ms": 10.72334984317422,
-    "std_time_ms": 0.588925000524348,
-    "memory_mb": 414.9931640625
+    "avg_time_ms": 19.723887974396348,
+    "std_time_ms": 0.7145296443965843,
+    "memory_mb": 503.1064453125
   },
   "transformer": {
-    "avg_time_ms": 10.926167545840144,
-    "std_time_ms": 0.410457129832223,
-    "memory_mb": 360.9541015625
+    "avg_time_ms": 22.61382152015964,
+    "std_time_ms": 0.7956369494268115,
+    "memory_mb": 681.0634765625
   },
   "comparison": {
-    "time_speedup": 1.0189136515764265,
-    "memory_ratio": 1.1497117286272005
+    "time_speedup": 1.1465194666241627,
+    "memory_ratio": 0.7387071288153724
   }
 }

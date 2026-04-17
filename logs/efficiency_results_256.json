@@ -1,0 +1,22 @@
+{
+  "config": {
+    "batch_size": 32,
+    "seq_length": 256,
+    "n_iterations": 30,
+    "device": "cuda"
+  },
+  "bimamba": {
+    "avg_time_ms": 9.491960036878783,
+    "std_time_ms": 0.31755234182641573,
+    "memory_mb": 405.0419921875
+  },
+  "transformer": {
+    "avg_time_ms": 8.001684801032145,
+    "std_time_ms": 0.4068701255621838,
+    "memory_mb": 232.7646484375
+  },
+  "comparison": {
+    "time_speedup": 0.8429960482285509,
+    "memory_ratio": 1.7401353466106708
+  }
+}
