@@ -439,6 +439,14 @@ def main():
         )
     model = model.to(device)
 
+    if args.task_type == "regression" and args.loss_type != "mse":
+        if args.loss_type == "smooth_l1":
+            model.loss_fct = nn.SmoothL1Loss()
+            logger.info(f"使用 SmoothL1Loss 替代 MSE")
+        elif args.loss_type == "huber":
+            model.loss_fct = nn.HuberLoss()
+            logger.info(f"使用 HuberLoss 替代 MSE")
+
     if device.type == "cuda" and hasattr(torch, "compile"):
         try:
             model = torch.compile(model, mode="default")

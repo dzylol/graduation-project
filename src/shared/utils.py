@@ -92,6 +92,13 @@ def parse_train_args() -> argparse.Namespace:
         help="任务类型：regression（回归）或 classification（分类）",
     )
     parser.add_argument(
+        "--loss_type",
+        type=str,
+        default="mse",
+        choices=["mse", "smooth_l1", "huber"],
+        help="回归任务损失函数：mse（默认）、smooth_l1（更鲁棒）、huber（抗异常值）",
+    )
+    parser.add_argument(
         "--pooling",
         type=str,
         default="mean",

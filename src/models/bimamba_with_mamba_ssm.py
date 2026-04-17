@@ -485,7 +485,17 @@ class BiMambaForPropertyPrediction(nn.Module):
             self.cls_token = nn.Parameter(torch.randn(1, 1, d_model, **factory_kwargs))
 
         self.dropout = nn.Dropout(dropout)
-        self.classifier = nn.Linear(d_model, num_labels, **factory_kwargs)
+
+        # MLP head for regression tasks (better non-linear mapping)
+        if task_type == "regression":
+            self.classifier = nn.Sequential(
+                nn.Linear(d_model, d_model // 2, **factory_kwargs),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(d_model // 2, num_labels, **factory_kwargs),
+            )
+        else:
+            self.classifier = nn.Linear(d_model, num_labels, **factory_kwargs)
 
         if task_type == "regression":
             self.loss_fct = nn.MSELoss()
