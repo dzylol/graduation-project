@@ -1,0 +1,31 @@
+{
+  "checkpoint": "checkpoints/mpro_bi_mamba_best.pt",
+  "test_csv": "dataset/mpro/test.csv",
+  "total_samples": 4,
+  "groups": {
+    "short": {
+      "name": "Short (< 50 tokens)",
+      "count": 1,
+      "rmse": 1.8497906088829041,
+      "lengths": {
+        "min": 48,
+        "max": 48
+      }
+    },
+    "medium": {
+      "name": "Medium (50-100 tokens)",
+      "count": 3,
+      "rmse": 2.3354268754337033,
+      "lengths": {
+        "min": 52,
+        "max": 60
+      }
+    },
+    "long": {
+      "name": "Long (> 100 tokens)",
+      "count": 0,
+      "rmse": null,
+      "lengths": null
+    }
+  }
+}

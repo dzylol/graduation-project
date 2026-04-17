@@ -1,0 +1,51 @@
+{
+  "experiment_info": {
+    "timestamp": "2026-04-15 19:50:29",
+    "dataset": "Lipophilicity",
+    "model_type": "mamba_ssm",
+    "task_type": "regression",
+    "split": "scaffold",
+    "split_seed": 42
+  },
+  "training_params": {
+    "epochs": 100,
+    "batch_size": 32,
+    "learning_rate": 0.0001,
+    "weight_decay": 1e-05,
+    "warmup_epochs": 5,
+    "max_grad_norm": 1.0,
+    "gradient_accumulation_steps": 1,
+    "device": "cuda",
+    "seed": 42
+  },
+  "model_params": {
+    "d_model": 256,
+    "d_mamba": 256,
+    "n_layers": 4,
+    "pooling": "cls",
+    "dropout": 0.1,
+    "total_params": 3992001,
+    "trainable_params": 3992001
+  },
+  "data_info": {
+    "train_samples": 3360,
+    "val_samples": 420,
+    "test_samples": 420,
+    "normalization": {
+      "mean": 2.196434736251831,
+      "std": 1.2021446228027344
+    },
+    "vocab_size": 45,
+    "max_length": 512
+  },
+  "training_results": {
+    "best_val_loss": 1.037831574678421,
+    "epochs_trained": 100,
+    "test_loss": 1.0044810388769423,
+    "test_mae": 0.8097090125083923,
+    "test_mse": 0.9870443344116211,
+    "test_rmse": 0.9935010671615601,
+    "test_rmse_orig": 1.1943320035934448,
+    "test_mae_orig": 0.9733873605728149
+  }
+}

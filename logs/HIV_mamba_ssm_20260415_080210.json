@@ -1,0 +1,47 @@
+{
+  "experiment_info": {
+    "timestamp": "2026-04-15 08:02:10",
+    "dataset": "HIV",
+    "model_type": "mamba_ssm",
+    "task_type": "classification",
+    "split": "scaffold",
+    "split_seed": 42
+  },
+  "training_params": {
+    "epochs": 100,
+    "batch_size": 32,
+    "learning_rate": 0.0001,
+    "weight_decay": 1e-05,
+    "warmup_epochs": 5,
+    "max_grad_norm": 1.0,
+    "gradient_accumulation_steps": 1,
+    "device": "cuda",
+    "seed": 42
+  },
+  "model_params": {
+    "d_model": 256,
+    "d_mamba": 256,
+    "n_layers": 4,
+    "pooling": "mean",
+    "dropout": 0.1,
+    "total_params": 3991745,
+    "trainable_params": 3991745
+  },
+  "data_info": {
+    "train_samples": 32895,
+    "val_samples": 4111,
+    "test_samples": 4114,
+    "vocab_size": 45,
+    "max_length": 512
+  },
+  "training_results": {
+    "best_val_loss": 0.1412129538754622,
+    "epochs_trained": 100,
+    "test_loss": 1.1322099196863702,
+    "test_mae": 0,
+    "test_mse": 0,
+    "test_rmse": 0,
+    "test_rmse_orig": 0,
+    "test_mae_orig": 0
+  }
+}

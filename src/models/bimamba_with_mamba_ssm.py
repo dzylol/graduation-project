@@ -177,7 +177,7 @@ class BiMambaBlock(nn.Module):
     def __init__(
         self,
         d_model: int,  # 模型维度
-        d_state: int = 64,  # SSM 状态维度
+        d_state: int = 16,  # SSM 状态维度 (RTX 5060 Ti 推荐 16, 显存节省 50%)
         d_conv: int = 4,  # 局部卷积核宽度
         expand: int = 2,  # 内部维度扩展因子
         use_fast_path: bool = True,  # 是否使用融合 kernel
@@ -260,7 +260,7 @@ class BiMambaEncoder(nn.Module):
         d_model: int = 256,
         d_mamba: int = 256,
         n_layers: int = 4,
-        d_state: int = 64,
+        d_state: int = 16,
         d_conv: int = 4,
         expand: int = 2,
         max_seq_length: int = 512,
@@ -445,7 +445,7 @@ class BiMambaForPropertyPrediction(nn.Module):
         d_model: int = 256,
         d_mamba: int = 256,
         n_layers: int = 4,
-        d_state: int = 64,
+        d_state: int = 16,
         d_conv: int = 4,
         expand: int = 2,
         max_seq_length: int = 512,

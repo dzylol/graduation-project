@@ -96,7 +96,7 @@ def train_epoch(
         optimizer.zero_grad()
 
         if scaler is not None:
-            with torch.amp.autocast(device_type="cuda"):
+            with torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16):
                 logits, loss = model(input_ids=input_ids, labels=labels)
             loss_value = loss.item()
             scaled_loss = loss / args.gradient_accumulation_steps
@@ -439,9 +439,16 @@ def main():
         )
     model = model.to(device)
 
-    scaler = GradScaler("cuda") if device.type == "cuda" else None
+    if device.type == "cuda" and hasattr(torch, "compile"):
+        try:
+            model = torch.compile(model, mode="default")
+            logger.info("启用 torch.compile 加速")
+        except Exception as e:
+            logger.warning(f"torch.compile 失败: {e}")
+
+    scaler = GradScaler() if device.type == "cuda" else None
     if scaler:
-        logger.info("启用混合精度训练 (AMP)")
+        logger.info("启用混合精度训练 (AMP, bfloat16)")
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -470,7 +477,7 @@ def main():
     }
 
     optimizer = optim.AdamW(
-        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay, betas=(0.9, 0.95)
     )
 
     total_steps = len(train_loader) * args.epochs // args.gradient_accumulation_steps
@@ -480,16 +487,17 @@ def main():
         if current_step < warmup_steps:
             return float(current_step) / float(max(1, warmup_steps))
         else:
-            return max(
-                0.0,
-                float(total_steps - current_step) / float(max(1, total_steps - warmup_steps)),
+            progress = float(current_step - warmup_steps) / float(
+                max(1, total_steps - warmup_steps)
             )
+            return max(0.1, 0.5 * (1.0 + np.cos(np.pi * progress)))
 
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
     logger.info("开始训练")
     best_val_loss = float("inf")
     best_model_path = os.path.join(args.output_dir, f"{args.dataset}_bi_mamba_best.pt")
+    epochs_without_improvement = 0
 
     for epoch in range(args.epochs):
         start_time = time.time()
@@ -558,6 +566,18 @@ def main():
                 checkpoint_path,
             )
             logger.info(f"保存检查点到 {checkpoint_path}")
+
+        if val_metrics["loss"] < best_val_loss:
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+            logger.info(f"验证损失连续 {epochs_without_improvement} 个 epoch 无改善")
+
+        if epochs_without_improvement >= args.early_stopping_patience:
+            logger.info(
+                f"早停触发：连续 {epochs_without_improvement} 个 epoch 验证损失无改善，停止训练"
+            )
+            break
 
     test_metrics = {}
     if test_loader:

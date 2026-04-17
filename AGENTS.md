@@ -1,7 +1,7 @@
 # AGENTS.md - Bi-Mamba-Chem
 
-**Generated:** 2026-04-15
-**Commit:** 34cbd91 (main)
+**Generated:** 2026-04-16
+**Commit:** 31cd16c82 (main)
 **Language:** Python (PyTorch + RDKit)
 
 When reasoning through problem, use draft-style thinking:
@@ -99,6 +99,7 @@ src/
 │   ├── bimamba.py                  # Manual SSM (primary, no deps)
 │   ├── bimamba_with_mamba_ssm.py   # mamba_ssm package wrapper
 │   ├── bimamba_with_mamba_ssm_architecture.md
+│   ├── vanilla_transformer.py      # Transformer baseline for comparison
 │   └── AGENTS.md
 ├── data/
 │   ├── __init__.py
@@ -136,6 +137,9 @@ tests/
 scripts/
 ├── manage_experiments.py
 ├── batch_train_phase1.py
+├── benchmark_efficiency.py        # Training/memory efficiency
+├── plot_efficiency.py            # Efficiency plotting
+├── analyze_length_groups.py      # RMSE by sequence length
 └── benchmarks/
     ├── benchmark_efficiency.py
     ├── benchmark_transformer.py

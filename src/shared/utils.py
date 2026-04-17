@@ -113,7 +113,12 @@ def parse_train_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, default=10, help="训练轮数")
     parser.add_argument("--batch_size", type=int, default=32, help="批大小")
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="学习率")
-    parser.add_argument("--weight_decay", type=float, default=1e-5, help="权重衰减")
+    parser.add_argument(
+        "--weight_decay",
+        type=float,
+        default=0.1,
+        help="权重衰减 (Mamba 官方推荐 0.1, 用于防止 B/C 矩阵发散)",
+    )
     parser.add_argument(
         "--gradient_accumulation_steps",
         type=int,
@@ -126,6 +131,12 @@ def parse_train_args() -> argparse.Namespace:
         type=float,
         default=1.0,
         help="梯度裁剪的最大范数",
+    )
+    parser.add_argument(
+        "--early_stopping_patience",
+        type=int,
+        default=15,
+        help="早停耐心值：验证损失连续 N 个 epoch 无改善则停止训练",
     )
 
     # Other arguments

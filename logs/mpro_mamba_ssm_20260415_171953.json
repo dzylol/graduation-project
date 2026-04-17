@@ -1,0 +1,51 @@
+{
+  "experiment_info": {
+    "timestamp": "2026-04-15 17:19:53",
+    "dataset": "mpro",
+    "model_type": "mamba_ssm",
+    "task_type": "regression",
+    "split": "scaffold",
+    "split_seed": 42
+  },
+  "training_params": {
+    "epochs": 100,
+    "batch_size": 32,
+    "learning_rate": 0.0001,
+    "weight_decay": 1e-05,
+    "warmup_epochs": 5,
+    "max_grad_norm": 1.0,
+    "gradient_accumulation_steps": 1,
+    "device": "cuda",
+    "seed": 42
+  },
+  "model_params": {
+    "d_model": 256,
+    "d_mamba": 256,
+    "n_layers": 4,
+    "pooling": "mean",
+    "dropout": 0.1,
+    "total_params": 3991745,
+    "trainable_params": 3991745
+  },
+  "data_info": {
+    "train_samples": 32,
+    "val_samples": 4,
+    "test_samples": 4,
+    "normalization": {
+      "mean": 1.6490375995635986,
+      "std": 2.4811911582946777
+    },
+    "vocab_size": 45,
+    "max_length": 512
+  },
+  "training_results": {
+    "best_val_loss": 0.06619852781295776,
+    "epochs_trained": 100,
+    "test_loss": 0.7546764612197876,
+    "test_mae": 0.6628880500793457,
+    "test_mse": 0.5847417116165161,
+    "test_rmse": 0.7646840810775757,
+    "test_rmse_orig": 1.8973273038864136,
+    "test_mae_orig": 1.644752025604248
+  }
+}

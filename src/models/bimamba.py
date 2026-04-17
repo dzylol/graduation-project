@@ -64,9 +64,7 @@ class BiMambaBlock(nn.Module):
         self.x_proj = nn.Linear(
             self.d_inner, self.dt_rank + d_state * 2, bias=False, **factory_kwargs
         )
-        self.dt_proj = nn.Linear(
-            self.dt_rank, self.d_inner, bias=True, **factory_kwargs
-        )
+        self.dt_proj = nn.Linear(self.dt_rank, self.d_inner, bias=True, **factory_kwargs)
 
         dt_init_std = self.dt_rank**-0.5 * dt_scale
         if dt_init == "constant":
@@ -74,9 +72,7 @@ class BiMambaBlock(nn.Module):
         elif dt_init == "random":
             nn.init.uniform_(self.dt_proj.weight, -dt_init_std, dt_init_std)
         else:
-            raise NotImplementedError(
-                f"dt_init must be 'constant' or 'random', got {dt_init}"
-            )
+            raise NotImplementedError(f"dt_init must be 'constant' or 'random', got {dt_init}")
 
         self._init_dt_proj_bias(dt_min, dt_max, dt_init_floor, factory_kwargs)
 
@@ -93,8 +89,7 @@ class BiMambaBlock(nn.Module):
         self, dt_min: float, dt_max: float, dt_init_floor: float, factory_kwargs: dict
     ) -> None:
         dt = torch.exp(
-            torch.rand(self.d_inner, **factory_kwargs)
-            * (math.log(dt_max) - math.log(dt_min))
+            torch.rand(self.d_inner, **factory_kwargs) * (math.log(dt_max) - math.log(dt_min))
             + math.log(dt_min)
         ).clamp(min=dt_init_floor)
         inv_dt = dt + torch.log(-torch.expm1(-dt))
@@ -116,21 +111,17 @@ class BiMambaBlock(nn.Module):
         y = self.ssm(x)
         y = y * F.silu(z)
 
-        return self.out_proj(y)
+        return self.out_proj(y) + hidden_states
 
     def ssm(self, x: torch.Tensor) -> torch.Tensor:
         x_dbl = self.x_proj(x)
-        dt, B, C = torch.split(
-            x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1
-        )
+        dt, B, C = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1)
         dt = F.softplus(self.dt_proj(dt))
         return self.selective_scan(x, dt, B, C)
 
     def _discretize(self, dt: torch.Tensor, B: torch.Tensor, A: torch.Tensor):
         dt_clamped = torch.clamp(dt, min=-10, max=10)
-        dA = torch.exp(
-            torch.clamp(dt_clamped.unsqueeze(-1) * A.unsqueeze(0), min=-50, max=50)
-        )
+        dA = torch.exp(torch.clamp(dt_clamped.unsqueeze(-1) * A.unsqueeze(0), min=-50, max=50))
         dB = dt_clamped.unsqueeze(-1) * B.unsqueeze(1)
         return dA, dB
 
@@ -160,9 +151,7 @@ class BiMambaBlock(nn.Module):
         outputs = []
 
         for t in range(seqlen):
-            y_t, h = self._single_step(
-                h, dt[:, t, :], B[:, t, :], C[:, t, :], x[:, t, :], A
-            )
+            y_t, h = self._single_step(h, dt[:, t, :], B[:, t, :], C[:, t, :], x[:, t, :], A)
             outputs.append(y_t)
 
         y = torch.stack(outputs, dim=1)
@@ -196,9 +185,7 @@ class BiMambaEncoder(nn.Module):
         self.token_embedding = nn.Embedding(
             vocab_size, d_model, padding_idx=pad_token_id, **factory_kwargs
         )
-        self.position_embedding = nn.Embedding(
-            max_seq_length, d_model, **factory_kwargs
-        )
+        self.position_embedding = nn.Embedding(max_seq_length, d_model, **factory_kwargs)
 
         self.forward_layers = nn.ModuleList(
             [
@@ -325,9 +312,7 @@ class BiMambaForPropertyPrediction(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
         self.classifier = nn.Linear(d_model, num_labels, **factory_kwargs)
-        self.loss_fct = (
-            nn.MSELoss() if task_type == "regression" else nn.BCEWithLogitsLoss()
-        )
+        self.loss_fct = nn.MSELoss() if task_type == "regression" else nn.BCEWithLogitsLoss()
 
     def forward(
         self,
@@ -337,19 +322,14 @@ class BiMambaForPropertyPrediction(nn.Module):
     ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         batch_size = input_ids.shape[0]
 
-        cls_token = (
-            self.cls_token.expand(batch_size, -1, -1) if self.pooling == "cls" else None
-        )
+        cls_token = self.cls_token.expand(batch_size, -1, -1) if self.pooling == "cls" else None
         encoder_outputs = self.encoder(input_ids, attention_mask, cls_token=cls_token)
 
         if self.pooling == "mean":
             if attention_mask is not None:
-                sum_mask = torch.sum(attention_mask, dim=1, keepdim=True).clamp(
-                    min=1e-9
-                )
+                sum_mask = torch.sum(attention_mask, dim=1, keepdim=True).clamp(min=1e-9)
                 pooled_output = (
-                    torch.sum(encoder_outputs * attention_mask.unsqueeze(-1), dim=1)
-                    / sum_mask
+                    torch.sum(encoder_outputs * attention_mask.unsqueeze(-1), dim=1) / sum_mask
                 )
             else:
                 pooled_output = torch.mean(encoder_outputs, dim=1)
@@ -363,9 +343,7 @@ class BiMambaForPropertyPrediction(nn.Module):
         elif self.pooling == "cls":
             pooled_output = encoder_outputs[:, 0]
         else:
-            raise ValueError(
-                f"pooling must be 'mean', 'max', or 'cls', got {self.pooling}"
-            )
+            raise ValueError(f"pooling must be 'mean', 'max', or 'cls', got {self.pooling}")
 
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
