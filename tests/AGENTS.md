@@ -1,6 +1,6 @@
 # Tests AGENTS.md - BiMamba-Chem
 
-**Generated:** 2026-04-15
+**Generated:** 2026-04-20
 
 ## OVERVIEW
 

@@ -1,5 +1,7 @@
 # AGENTS.md - src/db/
 
+**Generated:** 2026-04-20
+
 **SQLite persistence layer.** Experiment tracking + molecule storage with dataset management.
 
 ## Structure

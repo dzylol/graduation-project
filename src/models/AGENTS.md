@@ -1,5 +1,7 @@
 # AGENTS.md - src/models/
 
+**Generated:** 2026-04-20 (updated MLP head)
+
 **Core Bi-Mamba architecture.** All model code lives here.
 
 ## Structure
@@ -46,6 +48,21 @@ src/models/
 - dt_rank: `auto` = `ceil(d_model / 16)`
 - Activation: `SiLU` (nn.SiLU)
 - A_log: `nn.Parameter(log(A))` where A = `torch.arange(1, d_state+1)`
+
+## Head Architecture
+**Regression (task_type=regression):**
+```
+MLP head: nn.Sequential(
+    nn.Linear(d_model, d_model // 2),
+    nn.ReLU(),
+    nn.Dropout(dropout),
+    nn.Linear(d_model // 2, num_labels),
+)
+```
+**Classification (task_type=classification):**
+```
+Linear head: nn.Linear(d_model, num_labels)
+```
 
 ## Anti-Patterns (THIS MODULE)
 - **NEVER** use `as any` or `@ts-ignore` — type safety is required

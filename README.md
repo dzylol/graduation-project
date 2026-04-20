@@ -1,6 +1,8 @@
 # Bi-Mamba-Chem
 
-基于**双向 Mamba SSM** 的分子性质预测模型，支持回归、分类任务。O(N) 线性复杂度（vs Transformer 的 O(N²)），适合长序列分子。
+基于**双向 Mamba SSM** 的分子性质预测模型，支持回归、分类任务。O(N) 线性复杂度（vs Transformer 的 O(N²)），适合**长序列生物大分子**（如蛋白质序列、长链聚合物）。在小分子 SMILES 任务上验证了可行性，同时明确了其适用边界。
+
+> 本项目为毕业论文探索实验：验证 Bi-Mamba 在分子性质预测任务上的可行性，同时诚实地呈现其适用边界——Mamba 原设计目标为长序列场景（语言模型上下文数千 tokens、基因组序列数万 bp），小分子 SMILES 序列过短，无法充分发挥 O(N) 线性复杂度的理论优势。
 
 > 核心模型见 [`mamba.tutorial.md`](./mamba.tutorial.md) —— Mamba SSM 完全入门指南。
 
@@ -46,7 +48,9 @@ python -m pytest tests/ -v
 |------|---------|
 | 快速实验 | Mac M1+/M2+（MPS），batch=16 |
 | 正式训练 | NVIDIA GPU（CUDA），batch=32 |
-| 长序列 | d_model=512, n_layers=6, batch=8 |
+| 长序列生物大分子 | d_model=512, n_layers=6, batch=8 |
+
+> **注意**：Mamba 的 O(N) 效率优势在序列长度 1000+ tokens 时才开始明显显现。SMILES 分子序列普遍在 50-150 tokens 范围内，效率优势受限于此。该模型更适合蛋白质序列、长链聚合物等长序列场景。
 
 ---
 
@@ -446,6 +450,13 @@ python train.py --device cpu --batch_size 4
 # 用 conda（推荐）
 conda install -c conda-forge rdkit -y
 ```
+
+### 为什么在 SMILES 任务上效率提升不明显？
+
+这是正常现象，不是实现问题。Mamba 的 O(N) 优势设计目标场景是**长序列**（语言模型上下文数千 tokens、基因组序列数万 bp）。SMILES 分子普遍在 50-150 tokens，在 512 tokens 时效率才刚逆转 Transformer，1000+ tokens 时优势才明显。因此：
+
+- **适合**: 蛋白质序列、长链聚合物等长序列生物大分子
+- **不必要优势**: 小分子 SMILES（50-150 tokens），此场景用 Transformer 足够
 
 ---
 

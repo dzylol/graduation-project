@@ -1,5 +1,7 @@
 # AGENTS.md - scripts/benchmarks/
 
+**Generated:** 2026-04-20
+
 **Efficiency benchmarking + ablation experiment scripts.** O(N) vs O(N²) complexity validation, pooling strategy comparison.
 
 ## Overview

@@ -1,0 +1,51 @@
+{
+  "experiment_info": {
+    "timestamp": "2026-04-14 13:53:08",
+    "dataset": "ESOL",
+    "model_type": "mamba_ssm",
+    "task_type": "regression",
+    "split": "random",
+    "split_seed": 42
+  },
+  "training_params": {
+    "epochs": 1,
+    "batch_size": 32,
+    "learning_rate": 0.0001,
+    "weight_decay": 1e-05,
+    "warmup_epochs": 5,
+    "max_grad_norm": 1.0,
+    "gradient_accumulation_steps": 1,
+    "device": "cuda",
+    "seed": 42
+  },
+  "model_params": {
+    "d_model": 256,
+    "d_mamba": 256,
+    "n_layers": 4,
+    "pooling": "mean",
+    "dropout": 0.1,
+    "total_params": 3991745,
+    "trainable_params": 3991745
+  },
+  "data_info": {
+    "train_samples": 915,
+    "val_samples": 114,
+    "test_samples": 115,
+    "normalization": {
+      "mean": -3.072370767593384,
+      "std": 2.0970816612243652
+    },
+    "vocab_size": 45,
+    "max_length": 512
+  },
+  "training_results": {
+    "best_val_loss": 1.0303964018821716,
+    "epochs_trained": 1,
+    "test_loss": 1.0106579959392548,
+    "test_mae": 0.792877197265625,
+    "test_mse": 0.9954460263252258,
+    "test_rmse": 0.9977204203605652,
+    "test_rmse_orig": 2.0923011302948,
+    "test_mae_orig": 1.6627283096313477
+  }
+}

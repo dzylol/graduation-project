@@ -1,5 +1,7 @@
 # AGENTS.md - src/visualization/
 
+**Generated:** 2026-04-20
+
 **Training curves, prediction plots, molecule structures.** Pure matplotlib/RDKit.
 
 ## Structure

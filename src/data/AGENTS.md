@@ -1,5 +1,7 @@
 # AGENTS.md - src/data/
 
+**Generated:** 2026-04-20
+
 **SMILES tokenization + molecular dataset handling.** CSV loading, RDKit validation, z-score normalization, SQLite database support.
 
 ## Structure

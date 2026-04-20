@@ -1,7 +1,7 @@
 # AGENTS.md - Bi-Mamba-Chem
 
-**Generated:** 2026-04-16
-**Commit:** 31cd16c82 (main)
+**Generated:** 2026-04-20
+**Commit:** 796aae9 (main)
 **Language:** Python (PyTorch + RDKit)
 
 When reasoning through problem, use draft-style thinking:
@@ -90,6 +90,14 @@ def get_device() -> str:
 - Gradient clipping: `torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)`
 - Linear warmup for first 5 epochs
 - Save `state_dict` only; filename: `{dataset}_bi_mamba_epoch{N}_valLoss{val_loss:.4f}.pt`
+- **MLP head for regression**: `nn.Sequential(nn.Linear(d_model, d_model//2), nn.ReLU(), nn.Dropout(dropout), nn.Linear(d_model//2, num_labels))`
+- **Loss types**: `--loss_type mse|smooth_l1|huber` for regression robustness
+
+### Regression Head Architecture
+```
+task_type=regression → MLP head (d_model → d_model//2 → num_labels)
+task_type=classification → Linear head (d_model → num_labels)
+```
 
 ## Directory Layout
 ```
@@ -126,7 +134,8 @@ src/
 │   └── AGENTS.md
 └── shared/
     ├── __init__.py
-    └── utils.py                     # Training/eval arg parsing, helpers
+    ├── utils.py                     # Training/eval arg parsing, helpers
+    └── AGENTS.md
 
 tests/
 ├── __init__.py
@@ -140,6 +149,7 @@ scripts/
 ├── benchmark_efficiency.py        # Training/memory efficiency
 ├── plot_efficiency.py            # Efficiency plotting
 ├── analyze_length_groups.py      # RMSE by sequence length
+├── AGENTS.md
 └── benchmarks/
     ├── benchmark_efficiency.py
     ├── benchmark_transformer.py
@@ -176,11 +186,13 @@ train.py, eval.py
 | Test config | **None** — pytest runs without config file |
 
 ## Module-Specific AGENTS.md
-- `src/models/AGENTS.md` — BiMamba architecture, fusion modes, pooling
+- `src/models/AGENTS.md` — BiMamba architecture, fusion modes, pooling, MLP head
 - `src/visualization/AGENTS.md` — Plotting conventions, RDKit molecule rendering
 - `src/data/AGENTS.md` — SMILES tokenization, dataset handling, z-score norm
 - `src/db/AGENTS.md` — SQLite persistence, ExperimentRepository, singleton pattern
+- `src/shared/AGENTS.md` — Argparse factories, device management, evaluate()
 - `tests/AGENTS.md` — Test conventions, dual-mode execution, pytest patterns
+- `scripts/AGENTS.md` — Batch training, experiment management
 - `scripts/benchmarks/AGENTS.md` — O(N) benchmarking scripts
 
 ## Testing Conventions
