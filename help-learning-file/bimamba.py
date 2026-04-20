@@ -14,7 +14,7 @@
         │
         ▼
     BiMambaForPropertyPrediction.forward(input_ids)
-        │
+        │  
         ├─ token_embedding(input_ids)       → (B, L, d_model)
         ├─ position_embedding(position_ids) → (B, L, d_model)  加法融合
         │

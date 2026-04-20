@@ -62,11 +62,13 @@ Thumbs.db
 .env
 .env.local
 
-# Sisyphus
-.sisyphus/
 
 # Experiment data (large files)
 experiment-data/checkpoints/
 
 # Sisyphus (orchestration output)
 .sisyphus/
+ 
+ 
+src/db/__pycache__/
+
