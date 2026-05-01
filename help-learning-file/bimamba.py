@@ -25,7 +25,7 @@
         融合: gate * forward + (1-gate) * backward
         │
         ▼
-    Pooling (mean / max / cls)    → (B, d_model)
+    Pooling (mean / max / cls)    → (B, d_model)wh
         │
         ▼
     Classifier (MLP)              → (B, 1)  回归值 或 分类 logit
@@ -49,8 +49,26 @@
 
     "选择性"：dt, B, C 都由输入 x 动态生成，
     所以模型可以"选择"记住或遗忘某些信息。
-"""
 
+为什么用 exp(dt · A) 而不是线性 dt · A？
+分辨率不变性：e^(ΔA) 只依赖乘积 Δ·A，不单独依赖 Δ 或 A。
+同一物理系统用不同采样率离散化：
+  - 快采样 Δ=0.1：e^(0.1A) · e^(0.1A)
+  - 慢采样 Δ=0.2：e^(0.2A) = e^(0.1A) · e^(0.1A)  ← 严格成立！
+前向欧拉 (I + ΔA) 不满足这个性质：(I+0.2A) ≠ (I+0.1A)²
+所以 exp 离散化让系统天然具有分辨率不变性。
+
+为什么 B 用简化 ΔB 而不是完整 ZOH 公式？
+完整 ZOH（零阶保持）：B̄ = (ΔA)⁻¹ · (exp(ΔA) − I) · ΔB
+需要：矩阵求逆 O(N³) + 2次矩阵乘法
+简化 ΔB：只需一次标量×矩阵，O(N²)
+
+为什么可以近似？
+1. A 的误差会指数累积，必须精确；B 的误差线性累积，影响较小
+2. 矩阵求逆代价高（O(N³) vs O(N²)）
+3. 选择性机制的核心是 A 的 dt 调节，B 的近似对选择性影响不大
+Mamba 是精度与效率的权衡：A 用精确 exp，B 用线性近似。
+"""
 from __future__ import annotations
 
 import math
@@ -64,7 +82,7 @@ import torch.nn.functional as F
 # ═══════════════════════════════════════════════════════════
 # BiMambaBlock — 核心 SSM 块
 # ═══════════════════════════════════════════════════════════
-
+ 
 class BiMambaBlock(nn.Module):
     """
     单个 Mamba 块：实现了完整的选择性状态空间模型。

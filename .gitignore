@@ -72,3 +72,7 @@ experiment-data/checkpoints/
  
 src/db/__pycache__/
 
+.lcm/lcm.db
+.gitignore
+.lcm/lcm.db-wal
+.lcm/lcm.db-shm
