@@ -122,7 +122,7 @@ class BiMambaBlock(nn.Module):
     def _discretize(self, dt: torch.Tensor, B: torch.Tensor, A: torch.Tensor):
         dt_clamped = torch.clamp(dt, min=-10, max=10)
         dA = torch.exp(torch.clamp(dt_clamped.unsqueeze(-1) * A.unsqueeze(0), min=-50, max=50))
-        dB = dt_clamped.unsqueeze(-1) * B.unsqueeze(1)
+        dB = (dA - 1) / A.unsqueeze(0) * B.unsqueeze(1)
         return dA, dB
 
     def _single_step(

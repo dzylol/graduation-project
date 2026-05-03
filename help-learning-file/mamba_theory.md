@@ -310,8 +310,8 @@ $$\color{blue}{e^{-A\tau}} \cdot \frac{dh}{d\tau} - \color{blue}{e^{-A\tau}} \cd
 
 左边正好是 $e^{-A\tau} \cdot h(\tau)$ 的导数：
 
-$$\frac{d}{d\tau}\left( e^{-A\tau} \cdot h(\tau) \right) = e^{-A\tau} \cdot \frac{dh}{d\tau} + (-A) \cdot e^{-A\tau} \cdot h(\tau) \;\; \checkmark$$
 
+$$\frac{d}{d\tau}\left( e^{-A\tau} \cdot h(\tau) \right) = e^{-A\tau} \cdot \frac{dh}{d\tau} + (-A) \cdot e^{-A\tau} \cdot h(\tau) \;\; \checkmark$$
 所以方程简化为：
 
 $$\frac{d}{d\tau}\left( e^{-A\tau} \cdot h(\tau) \right) = e^{-A\tau} \cdot B \cdot x_t$$
@@ -394,47 +394,22 @@ $$\bar{A} = e^{\Delta \cdot A}, \quad \bar{B} = (\Delta A)^{-1} \cdot (e^{\Delta
 
 在物理世界中，一个系统以什么采样率被观察，不应该改变系统本身的演化规律。指数离散化保证了这一物理直觉。
 
-## 2.5 本项目的简化离散化——一项实现选择
+## 2.5 离散化的实现
 
-> **重要说明**：原版 Mamba 论文对所有参数使用**完整的 ZOH 离散化**：$\bar{A} = e^{\Delta A}$，$\bar{B} = (\Delta A)^{-1}(e^{\Delta A} - I) \cdot \Delta B$。本文档以下讨论的是**本项目 `bimamba.py` 的实现选择**——使用了简化的 B 离散化。
+本项目 `bimamba.py` 使用与 Mamba 论文一致的**完整 ZOH 离散化**：
 
-### 本项目实际使用的公式
+$$\boxed{\bar{A} = e^{\Delta \cdot A}, \qquad \bar{B} = (\Delta A)^{-1}(e^{\Delta A} - I) \cdot \Delta B}$$
 
-本项目对 A 和 B 使用了不对称的处理：
-
-$$\boxed{\bar{A} = e^{\Delta \cdot A} \quad \text{（精确，同 Mamba 论文）}, \qquad \bar{B} = \Delta \cdot B \quad \text{（简化，非论文默认）}}$$
-
-### 为什么可以简化 B？
-
-常见的解释是"ZOH 需要矩阵求逆，复杂度 O(N³)"——**这在 Mamba 中不成立**。因为 A 是对角阵，求逆只是逐元素 `1/x`（O(N)），而 $e^{\Delta A}$ 在计算 $\bar{A}$ 时已经算过了，ZOH 版 $\bar{B}$ 的实际额外开销不过是：
+在代码中：
 
 ```python
-# Ā = exp(ΔA) 已经算过，白嫖 ✓
-# ZOH 版 B̄：一次减法 + 一次逐元素除法 + 一次逐元素乘法
-B_zoh = ((exp_ΔA - 1) / (dt * A)) * dt * B   # 全是逐元素，O(N)
+dA = torch.exp(dt * A)                              # Ā = e^{ΔA}
+dB = (dA - 1) / A * B                               # B̄ = (Ā - 1)/A · B
 ```
 
-对 `d_state=16`，这是零开销级别的差异。所以**性能不是简化 B 的真正原因**。
+由于 A 是对角矩阵（所有非对线元为 0），矩阵求逆只是逐元素 `1/x`（O(N)），$e^{\Delta A}$ 在计算 $\bar{A}$ 时已经算过——ZOH 版 $\bar{B}$ 的额外开销不过是逐元素的减法、除法和乘法，对 `d_state=16` 零开销级别。
 
-真正的原因是：
-
-**1. B 是可学习的——模型能"学回来"**
-
-简化版 $B̄ = Δ·B$ 与 ZOH 版 $B̄ = (e^{ΔA} - 1)/(ΔA) · Δ · B$ 的差距，只是一个缩放因子 $(e^{ΔA} - 1)/(ΔA)$。B 在训练中本来就会被更新——如果这个缩放因子有用，模型自己会把 B 调大/调小来补偿。**Δ 不同——它出现在指数里（$Ā = e^{ΔA}$），无法通过调参弥补**。
-
-**2. 对精度的影响可忽略**
-
-实验表明，在 SMILES 性质预测任务上，简化 B 和完整 ZOH 的精度差异在统计噪声范围内——因为神经网络有很强的容错和自补偿能力，一个逐元素的缩放因子完全可以被后续层吸收。
-
-### 为什么简化 B 而非 A？
-
-两者不能对等看待：
-
-- **A 的误差按指数累积**：$h_t = \bar{A}h_{t-1} + ...$，A 的误差每一步都通过 $\bar{A}$ 乘到下一状态。如果 $\bar{A}$ 有 1% 误差，经 $t=100$ 步，累积误差约为 $(1.01)^{100} \approx 2.7$ 倍。
-
-- **B 的误差按线性累积**：B 的误差只影响当前输入对状态的贡献，不会在后续步骤中被自我放大。多步的 B 误差是相加关系。
-
-**结论**：A 必须精确（用 exp），B 可简化（模型学得回来）。
+> **与旧版本的差异**：本项目最初使用简化版 $\bar{B} = \Delta \cdot B$ 作为教学性折衷（旧版见 2.5 节曾讨论简化理由）。现升级为完整 ZOH，与 Mamba 论文一致。`bimamba_with_mamba_ssm.py` 同样使用 Mamba2 官方库的 ZOH 实现。
 
 ---
 
@@ -484,7 +459,83 @@ x(t) → x_proj(x(t)) → [dt(t), B(t), C(t)]
 dt(t) → dt_proj(dt(t)) → Softplus → Δ(t)
 ```
 
-> **与原始 Mamba 论文的区别**：论文中使用 $\Delta = \text{softplus}(\text{Parameter} + \text{Broadcast}_D(\text{Linear}_1(x)))$，即先将 $x$ 投影到**1 维**再广播到 $d_{\text{inner}}$ 维。本项目使用**低秩投影**（$x \to dt\_rank \to d_{\text{inner}}$），参数更灵活但参数量略大。两者最终输出形状相同：$\Delta \in \mathbb{R}^{d_{\text{inner}}}$。
+> **与原始 Mamba 论文的区别——Δ 的计算方式**
+>
+> 要理解两种方案的差异，首先要理解 **Mamba 论文的方案**。
+>
+> **什么是"广播"（Broadcast）？** 广播就是把一个数复制成很多份：
+>
+> ```python
+> x = torch.randn(512)          # 输入是 512 维的向量
+> s = Linear(512, 1)(x)         # 投影成 1 个数（标量），比如 s = 0.73
+> s_broadcast = s.expand(512)   # 复制 512 次 → [0.73, 0.73, ..., 0.73]
+> ```
+>
+> 结果是 512 个通道收到完全相同的输入信号，每个通道唯一的"个性"来自可学习的偏置项。
+>
+> **Mamba 论文的做法**：先将输入投影到 1 维，广播到全部 $d_{\text{inner}}$ 个通道，再加偏置：
+>
+> $$\Delta = \text{softplus}(\underbrace{\text{Parameter}}_{d_{\text{inner}} \text{ 维}} + \underbrace{\text{Broadcast}_D(\text{Linear}_{1}(x))}_{\text{所有通道共享同一个输入信号}})$$
+>
+> ```python
+> s = Linear(512, 1)(x)                # 512 维 → 1 个标量
+> s_broadcast = s.expand(512)          # 广播到 512 维
+> param = torch.randn(512)             # 每个通道的独立偏置（可学习）
+> raw = param + s_broadcast            # 偏置 + 共享信号
+> Δ = softplus(raw)                    # 保证 > 0
+> ```
+>
+> **效果**：所有通道的 Δ 只能同涨同跌（共享同一个输入信号），偏置项提供有限的个性化。
+>
+> **本项目的做法**：用低秩分解替代广播——先将输入投影到 $dt\_rank$ 维，再升维到 $d_{\text{inner}}$：
+>
+> $$\Delta = \text{softplus}(\text{Linear}_{d_{\text{inner}}}(\text{Linear}_{dt\_rank}(x)))$$
+>
+> ```python
+> z = Linear(512, 16)(x)               # 512 维 → 16 维中介信号
+> delta_raw = Linear(16, 512)(z)       # 16 维 → 512 维（每个通道独立的线性组合）
+> Δ = softplus(delta_raw)              # 保证 > 0
+> ```
+>
+> | | Mamba 论文 | 本项目 |
+> |------|------------|--------|
+> | **信息流** | 512→1→广播→512 | 512→16→512 |
+> | **通道独立性** | 所有通道共用一个输入信号 | 不同通道可独立的 Δ |
+> | **参数量** | ≈512 | 512×16 + 16×512 = 16K |
+> | **效果** | 所有通道同步涨跌 | 各通道独立决策 |
+>
+> **为什么是两次变换（低秩分解）而不是一次？**
+>
+> 三种可能的方案：
+>
+> ```
+> 方案 A（论文）: x(512) → 1 个标量 → 广播到 512
+> 方案 B（本项目）: x(512) → 16维 → 512维
+> 方案 C（直连）:   x(512) → 512维（一次 Linear(512,512)）
+> ```
+>
+> - **方案 A 的问题**：512 个通道只有一个总开关，无法表示"这个 token 对某些通道重要、对另一些不重要"。
+> - **方案 C 的问题**：`nn.Linear(512, 512)` 的参数量 = $512 \times 512 + 512 = 262{,}656$。方案 B 只需 $512 \times 16 + 16 \times 512 = 16{,}384$——**节省 94% 的参数**。
+> - **方案 B 为什么有效**：虽然 512 个通道各需独立 Δ，但它们之间存在大量共享规律。16 维中介信号可以看作 16 个"基底模式"，每个通道的 Δ 是这 16 个模式的线性组合。
+>
+> **🎨 直观类比：16 罐颜料 → 512 种颜色**
+>
+> ```
+> 第 1 步（x → z，读配方）       第 2 步（z → Δ，调色）
+> ┌─────────────────────┐     ┌──────────────────────────────┐
+> │ 看到当前 token，       │     │ 按配方，16 罐颜料各几滴 →        │
+> │ 决定配方（16 个数）：   │     │ 512 个调色盘各得一种颜色          │
+> │  红×8 蓝×2 绿×3 紫×5  │     │                              │
+> └─────────────────────┘     │ 调色盘 0: 红×8+蓝×2+...+紫×5   │
+>                             │ 调色盘 1: 红×0+蓝×9+...+紫×1   │
+>                             │ ...                           │
+>                             │ 调色盘 511: 不同配方 → 不同颜色  │
+>                             └──────────────────────────────┘
+> ```
+>
+> 关键：**16 罐颜料是一样的，但 512 个调色盘各用不同比例——每个通道得到独立的 Δ**。
+>
+> 训练时，网络自动学习：$W_1$（512→16）学会"看到什么输入该调大哪些颜料"，$W_2$（16→512）学会"每罐颜料对应什么样的 512 通道调色板"。
 
 详细的维度变化：
 
@@ -492,7 +543,30 @@ dt(t) → dt_proj(dt(t)) → Softplus → Δ(t)
 2. **$x\_proj(x) \in \mathbb{R}^{dt\_rank + 2 \cdot d_{\text{state}}}$**：一次线性投影，同时生成 dt、B、C 的原始值
 3. **$dt = x\_proj(x)[:dt\_rank] \in \mathbb{R}^{dt\_rank}$**：低秩的时间步参数
 4. **$dt\_proj(dt) \in \mathbb{R}^{d_{\text{inner}}}$**：从低秩升到全维度
-5. **$\Delta = \text{Softplus}(dt\_proj(dt)) \in \mathbb{R}^{d_{\text{inner}}}$**：通过 softplus 确保 $\Delta > 0$（因为负的 $\Delta$ 在物理上无意义——时间不能倒流）
+5. **$\Delta = \text{Softplus}(dt\_proj(dt)) \in \mathbb{R}^{d_{\text{inner}}}$**：通过 softplus 确保 $\Delta > 0$
+
+> **Softplus 是什么？**
+>
+> $$\text{softplus}(z) = \ln(1 + e^z)$$
+>
+> 本质作用：**把任意实数映射为正数**。值域 $(0, \infty)$：
+>
+> ```
+> softplus(-3) ≈ 0.05    # z 很负 → 接近 0（"现在几乎不重要"）
+> softplus(0)  ≈ 0.69    # z=0   → 正但不大（默认值）
+> softplus(3)  ≈ 3.05    # z 很正 → 接近 z（"现在很重要"，可以任意大）
+> ```
+>
+> | | Sigmoid | Softplus | ReLU |
+> |------|---------|----------|------|
+> | **公式** | $\frac{1}{1+e^{-z}}$ | $\ln(1+e^z)$ | $\max(0,z)$ |
+> | **值域** | (0, 1) | (0, ∞) | [0, ∞) |
+> | **可导性** | 处处光滑 | 处处光滑 | $z=0$ 处不可导 |
+> | **问题** | 饱和区梯度消失 | — | 拐角处不光滑 |
+>
+> **为什么 Mamba 用 softplus 而不用 ReLU？** 因为 softplus 处处光滑可导（导数就是 sigmoid），有利于优化。ReLU 在 $z=0$ 处不可导会导致反向传播时梯度有微小但持续的方向偏差，这种误差在 SSM 的指数衰减中会被逐步放大。Sigmoid 上限为 1——Δ 被锁死在 (0,1)，无法表达"现在极其重要、旧状态全忘掉"（Δ 需要能任意大）。softplus 既光滑又没有上限。
+>
+> **$\Delta > 0$ 的物理意义**：时间不能倒流——负的 Δ 意味着输入发生在状态更新"之前"，在因果序列（自回归建模）中没有意义。
 
 结果：每个 token 有自己专属的 $\Delta_t, B_t, C_t$。
 
@@ -512,7 +586,7 @@ $$h_t = e^{\Delta_t \cdot A} \cdot h_{t-1} + \Delta_t \cdot B_t \cdot x_t$$
 
 ### 推导——为什么 A 必须为负
 
-假设 A 中某个通道的对角元素为 $a < 0$，步长为 $\Delta > 0$：
+假设 A 中某个状态维度的对角元为 $a < 0$（A 的对角沿 $d_{\text{state}}$ 维度），步长为 $\Delta > 0$：
 
 $$\bar{A} = e^{\Delta \cdot a}$$
 
@@ -548,33 +622,130 @@ $$0 < e^{\Delta \cdot a} < 1$$
 
 ## 3.5 选择性 SSM 与门控 RNN 的统一——Theorem 1
 
-Mamba 论文的 **Theorem 1** 揭示了选择性 SSM 与经典门控 RNN（如 GRU/LSTM）之间的深刻联系：
+Mamba 论文的 **Theorem 1** 揭示了一个深刻的联系：**门控 RNN（GRU/LSTM）是选择性 SSM 在 N=1 时的特例**。
 
-**定理陈述**（Mamba 论文 Theorem 1）：当状态维度 $N=1$，$A=-1$，$B=1$，且 $\Delta_t = \text{Softplus}(\text{Linear}(x_t))$ 时，选择性 SSM 的递推变为：
+> **前置知识：什么是门控 RNN？**
+>
+> 普通 RNN 每一步都做同样的事：$h_t = f(W \cdot h_{t-1} + U \cdot x_t)$——不管输入是什么，旧记忆和新输入按固定权重混合。
+>
+> **门控 RNN** 加了一个关键创新：在每一步，先决定"旧记忆保留多少、新输入写入多少"，然后按这个比例混合：
+>
+> $$h_t = \underbrace{(1 - \alpha_t)}_{\text{保留旧记忆的比例}} \cdot h_{t-1} + \underbrace{\alpha_t}_{\text{写入新输入的比例}} \cdot x_t$$
+>
+> 其中 $\alpha_t = \sigma(W \cdot x_t)$ 是由输入动态计算的 **0 到 1 之间的值**——一个"门"：
+>
+> ```
+> α ≈ 1 → 门大开 → 写入新的，几乎覆盖旧记忆
+> α ≈ 0 → 门关上 → 全保留旧记忆，忽略新输入
+> ```
+>
+> **为什么叫"门"？** 硬件时代用晶体管做线性电路，输入传到输出要通过"闸门"——开就全通，关就阻断。这里的门是软版本（0 到 1 之间），但直觉一致：**控制信息流的通过比例**。
+>
+> GRU 和 LSTM 是两种最著名的门控 RNN，各有 2-3 个不同用途的门：
+>
+> | | 门的作用 | 直观问题 |
+> |---|---|---|
+> | **LSTM 遗忘门** | 决定丢弃旧记忆的哪些部分 | "昨天吃了什么已经不重要的，忘掉" |
+> | **LSTM 输入门** | 决定写入新输入的哪些部分 | "这篇论文的核心论点值得记住" |
+> | **GRU 更新门** | 同时控制遗忘旧 + 写入新（合并为一个门） | "用 70% 的旧知识 + 30% 的新信息来更新" |
+>
+> **为什么门控 RNN 比普通 RNN 好？** 普通 RNN 对每个 token 的处理权重是固定的——连"。"号也要和名词一样处理，浪费计算。门控 RNN 可以**选择性**：对重要 token（语法关键的词）门打开，对不重要的（虚词、标点）门关闭。这正是 Mamba 中 $\Delta_t$ 做的事情——通过 $\Delta_t$ 的大小来决定每一步"记住还是忘记"。
 
-$$h_t = (1 - g_t) \cdot h_{t-1} + g_t \cdot x_t$$
+### 定理陈述
+
+当我们将 SSM 的参数退化为最简单情形：
+
+$$N=1,\quad A=-1,\quad B=1,\quad \Delta_t = \text{Softplus}(\text{Linear}(x_t))$$
+
+选择性 SSM 的递推公式将完全等价于一个经典门控 RNN：
+
+$$\boxed{h_t = (1 - g_t) \cdot h_{t-1} + g_t \cdot x_t}$$
 
 其中 $g_t = \sigma(\text{Linear}(x_t))$。
 
-**推导过程**：
+> 注意：$g_t$ 的定义是 $g_t = \sigma(\text{Linear}(x_t))$，其中 $\sigma$ 是 sigmoid，Linear 是作用于 $x_t$ 的可学习投影。下面推导中我们会看到为什么 $g_t$ 恰好取这个形式。
 
-1. 当 $N=1$ 时，$A=-1$ 是标量，$B=1$ 也是标量
-2. 离散化：$\bar{A}_t = e^{\Delta_t \cdot (-1)} = e^{-\Delta_t}$
-3. 定义 $g_t = 1 - e^{-\Delta_t} = 1 - \bar{A}_t$
-4. 则 $\bar{A}_t = 1 - g_t$
-5. 简化离散化：$\bar{B}_t = \Delta_t \cdot 1 = \Delta_t$
+### 推导（使用 Mamba 论文的完整 ZOH 离散化）
 
-但注意，当 $g_t$ 很小时（$\Delta_t$ 很小），$\Delta_t \approx g_t$（一阶泰勒展开：$e^{-\Delta} \approx 1 - \Delta$，所以 $g = 1 - e^{-\Delta} \approx \Delta$），所以：
+本节用 Mamba 论文的 ZOH 离散化推导。参数设定：$N=1$（标量状态），$A=-1$，$B=1$。
 
-> **更精确的说明**：如果使用完整的 ZOH 离散化（如 Mamba 论文），则 $\bar{B} = (\Delta A)^{-1}(e^{\Delta A} - I) \cdot \Delta B = 1 - e^{-\Delta} = g_t$，等式**完全精确**（不需要泰勒近似）。因此 Theorem 1 在 Mamba 论文中是一个**精确的数学等价**，而非近似关系。
+**第 1 步——ZOH 离散化：**
 
-$$h_t = \bar{A}_t h_{t-1} + \bar{B}_t x_t = (1 - g_t) h_{t-1} + g_t x_t$$
+$$\bar{A}_t = e^{\Delta_t \cdot A} = e^{\Delta_t \cdot (-1)} = e^{-\Delta_t}$$
 
-**这是经典的门控 RNN 形式**！$g_t$ 就是门控信号，控制"记忆旧状态"vs"写入新输入"的平衡：
-- $g_t \approx 0$：$\Delta$ 小 → $h_t \approx h_{t-1}$（全记忆，忽略新输入）
-- $g_t \approx 1$：$\Delta$ 大 → $h_t \approx x_t$（全遗忘，重写为新输入）
+$$\bar{B}_t = (\Delta_t A)^{-1}(e^{\Delta_t A} - I) \cdot \Delta_t B = \frac{e^{-\Delta_t} - 1}{-\Delta_t} \cdot \Delta_t \cdot 1 = 1 - e^{-\Delta_t}$$
 
-**含义**：Mamba 的选择性 SSM **不是凭空创造的**——它是连续时间 SSM 离散化的自然推广。经典的门控 RNN 是选择性 SSM 在最简单一维情况下的特例。Mamba 的创新在于将这个机制推广到多维状态空间，并利用并行扫描高效计算。
+**第 2 步——定义门控信号 $g_t$：**
+
+令 $g_t = 1 - e^{-\Delta_t}$。因为 $\Delta_t = \text{Softplus}(\text{Linear}(x_t)) > 0$，$g_t \in (0, 1)$。
+
+则 $\bar{A}_t = 1 - g_t$，$\bar{B}_t = g_t$。
+
+**第 3 步——代入递推公式：**
+
+$$h_t = \bar{A}_t h_{t-1} + \bar{B}_t x_t = (1 - g_t) h_{t-1} + g_t \cdot x_t \quad \checkmark$$
+
+**第 4 步——$g_t$ 为什么可以写成 $\sigma(\text{Linear}(x_t))$：**
+
+这里有一个微妙之处。$g_t = 1 - e^{-\text{Softplus}(z)}$，而 $\text{Softplus}(z) = \ln(1+e^z)$：
+
+$$g_t = 1 - e^{-\ln(1+e^z)} = 1 - \frac{1}{1+e^z} = \frac{e^z}{1+e^z} = \sigma(z)$$
+
+所以 $g_t = \sigma(\text{Linear}(x_t))$ 是 sigmoid 函数的形式——这就是定理中 $g_t$ 定义的来源，**不是额外的假设，而是 softplus + ZOH 离散化的自然结果**。
+
+### 这告诉我们什么
+
+| | 门控 RNN（如 GRU） | Mamba 的选择性 SSM |
+|---|---|---|
+| **状态维度** | $N=1$（标量状态） | $N = d_{\text{state}}$（默认 16） |
+| **门控方式** | 手写设计的门（遗忘门、输入门） | 从连续 SSM 离散化**自然推导**出门控行为 |
+| **训练** | 必须反向传播通过时间（BPTT） | 可用并行扫描（关联扫描）训练 |
+| **$A$ 初始值** | 固定为 -1 | 可学习，用 S4D/HiPPO 初始化 |
+| **门数量** | 多个（GRU 有 2 个门，LSTM 有 3 个） | 每个通道一个门（$d_{\text{inner}}$ 个独立门） |
+
+### 为什么 N=16 比 N=1 强
+
+回到 N=1 的公式：**$h_t = (1 - g_t) h_{t-1} + g_t \cdot x_t$**
+
+只有一个标量状态 $h_t$——就像只有一个旋钮，每个时刻只能在"记住旧信息"和"写入新信息"之间取一个折中点。用一个数字无法同时追踪长期趋势和即时细节。
+
+N=16 打破了这个限制。核心在于 **A 矩阵**：
+
+```
+A = diag(−1, −2, −3, ..., −16)
+
+A[i] 就是第 i 个状态维度的独立衰减参数。
+A[0]=−1  → 衰减最慢 → 适合记住长期背景
+A[15]=−16 → 衰减最快 → 适合跟踪即时细节
+```
+
+```python
+# Step t 的离散化：d_state=16 个状态维度各自按自己的 A 值独立衰减
+# （所有 d_inner=512 个通道共享同一套 A=[-1,...,-16]，但各通道的 Δ_t 独立）
+Ā_t[i] = e^{Δ_t · A[i]}          # i = 0, 1, ..., 15（状态维度）
+h_t[i] = Ā_t[i] · h_{t-1}[i] + B̄_t[i] · x_t
+```
+
+| A[i] | 衰减速度 | 擅长捕捉 |
+|------|---------|---------|
+| −1 | 最慢 | 序列全局趋势 |
+| −8 | 中等 | 几十个 token 内的结构 |
+| −16 | 最快 | 最近几个 token 的细节 |
+
+> **术语澄清："通道" vs "维度"**
+>
+> | 术语 | 指的是 | 数量 | 作用 |
+> |------|--------|------|------|
+> | **通道** | SSM 通道（channel） | `d_inner` = 512 | 每个通道是一个独立的 SSM，有自己的 Δ_t, B, C |
+> | **维度** | 每个通道内的状态维度 | `d_state` = 16 | 每个通道用 16 个数字来压缩历史，各维度有不同的 A 值（衰减速度） |
+>
+> 上面讨论的"16 个不同的衰减速度"，指的是每个 SSM 通道内部的 **16 个状态维度**——每个维度有独立的 A[i] 值。虽然文档有时直觉上说"通道"，严格来讲是"维度"。512 个通道共享同一套 16 个 A 值，但各有独立的 Δ_t 来动态调整实际衰减幅度。
+
+**GRU 做不到这一点**：GRU 的隐藏状态通过稠密权重矩阵耦合在一起，所有维度共享同一个门。Mamba 的 $d_{\text{state}}$ 个状态维度相互独立——各有自己的衰减速度，互不干扰。
+
+> **一句话**：N=1 是用一个旋钮控制所有记忆，N=16（$d_{\text{state}}$）是用 16 个旋钮各调不同频段。512 个通道用同一套旋钮，但每个通道拧的力度（$\Delta_t$）不同。
+
+> **注意**：以上推导使用的是 Mamba 论文的**完整 ZOH 离散化**。本项目 `bimamba.py` 也已完成从简化版到 ZOH 版的升级（`dB = (dA - 1) / A · B`），Theorem 1 的等价关系完全保留。`bimamba_with_mamba_ssm.py` 使用 Mamba2 官方库的 ZOH 实现，同样保留。
 
 ---
 
@@ -1052,7 +1223,48 @@ $$y_t^{\text{final}} = \text{Linear}_{\text{out}}(y_t \cdot \text{SiLU}(z_t)) + 
 
 ---
 
-# 第九部分：参考文献
+# 第九部分：实操附录——Checkpoint 兼容性指南
+
+## 哪些参数修改后会跟训练的 checkpoint 不兼容？
+
+当你想加载已有的 `.pt` 模型文件进行推理或继续训练时，以下参数如果跟训练时不一样，会导致 `state_dict` 形状不匹配，PyTorch 报错。
+
+### ❌ 不能改（影响模型结构）
+
+这些参数定义在 `src/models/bimamba.py` 的 `BiMambaForPropertyPrediction.__init__`：
+
+| 参数 | 默认值 | 影响哪些层的形状 |
+|------|--------|-----------------|
+| `d_model` | 256 | `token_embedding`（vocab×d_model）、`position_embedding`（512×d_model）、`in_proj`（d_model→2×d_inner）、`out_proj`（d_inner→d_model）、`norm`（d_model）、`classifier`（d_model→...）、`fusion_gate`（2d_model→2d_model） |
+| `expand` | 2 | `d_inner = expand × d_model` → 影响 **所有** 内部层（in_proj, conv1d, x_proj, dt_proj, A_log, D, out_proj） |
+| `d_state` | 16 | `A_log`（d_inner×d_state）、`x_proj` 输出（dt_rank+2×d_state）、`D`（d_inner） |
+| `d_conv` | 4 | `conv1d` 卷积核宽度 |
+| `n_layers` | 4 | 前向/反向 Block 的层数（`nn.ModuleList` 长度） |
+| `task_type` | regression | 分类器结构：regression → MLP 头（d_model→d_model/2→1），classification → Linear 头（d_model→num_labels） |
+| `num_labels` | 1 | 分类器输出维度 |
+| `vocab_size` | ~40 | `token_embedding` 的词典大小（由 tokenizer 决定，一般不会变） |
+
+### ✅ 可以随便改（不影响模型形状）
+
+这些参数定义在 `src/shared/utils.py` 的 `parse_train_args`：
+
+| 参数 | 作用 | 可改原因 |
+|------|------|---------|
+| `learning_rate` | 学习率 | 只影响优化器行为 |
+| `batch_size` | 每批大小 | 只影响数据加载 |
+| `epochs` | 训练轮数 | 只影响训练时长 |
+| `dropout` | Dropout 概率 | 只在 `nn.Dropout(p)` 中做行为控制，不存参数 |
+| `pooling` | mean / max / cls | 注意：`pooling="cls"` 时模型中有 `cls_token` 参数，若 checkpoint 用 cls 训练则不能改成别的（反之亦然） |
+| `loss_type` | mse / smooth_l1 / huber | 只影响损失函数选择 |
+| `grad_clip` | 梯度裁剪阈值 | 只影响训练时的梯度处理 |
+| `seed` | 随机种子 | 只影响随机性 |
+| `warmup_epochs` | 预热轮数 | 只影响学习率调度 |
+
+> **实用记忆法**：凡是影响了 `nn.Linear(*, *)`、`nn.Embedding(*, *)`、`nn.Conv1d(*, *)` 括号里数字的参数 → **不能改**。凡是影响"怎么训练"而不是"长什么样"的参数 → **可以改**。
+
+---
+
+# 第十部分：参考文献
 
 - **Mamba 原始论文**：Gu, A., & Dao, T. (2023). _Mamba: Linear-Time Sequence Modeling with Selective State Spaces_. arXiv:2312.00752
 - **Mamba-2**：Dao, T., & Gu, A. (2024). _Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality_. arXiv:2405.21060
