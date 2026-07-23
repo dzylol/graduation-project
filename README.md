@@ -1,10 +1,12 @@
 # Bi-Mamba-Chem
 
-基于**双向 Mamba SSM** 的分子性质预测模型，支持回归、分类任务。O(N) 线性复杂度（vs Transformer 的 O(N²)），适合**长序列生物大分子**（如蛋白质序列、长链聚合物）。在小分子 SMILES 任务上验证了可行性，同时明确了其适用边界。
+Bidirectional Mamba SSM for molecular property prediction (regression + classification).
 
-> 本项目为毕业论文探索实验：验证 Bi-Mamba 在分子性质预测任务上的可行性，同时诚实地呈现其适用边界——Mamba 原设计目标为长序列场景（语言模型上下文数千 tokens、基因组序列数万 bp），小分子 SMILES 序列过短，无法充分发挥 O(N) 线性复杂度的理论优势。
+Implemented a Bi-Mamba model from scratch in PyTorch — no `mamba-ssm` dependency required. Evaluated on MoleculeNet benchmarks (ESOL, FreeSolv, Lipophilicity, HIV, BBBP, etc.).
 
-> 核心模型见 [`mamba.tutorial.md`](./mamba.tutorial.md) —— Mamba SSM 完全入门指南。
+Mamba's O(N) complexity is designed for long sequences (thousands of tokens). SMILES strings are short (50–150 tokens), so the efficiency gain over Transformer is limited. The model performs fine on small molecules but really benefits from longer inputs like protein sequences.
+
+Model walkthrough: [`mamba.tutorial.md`](./mamba.tutorial.md)
 
 ---
 
@@ -26,31 +28,30 @@
 ## 快速开始
 
 ```bash
-# 1. 克隆项目
+# 1. Clone
 git clone <your-repo-url>
 cd bi-mamba-chem
 
-# 2. 安装依赖
+# 2. Dependencies
 pip install -r requirements.txt
-# 还需要安装 PyTorch（支持 MPS/CUDA）
 pip install torch torchvision
 
-# 3. 开始训练（Mac GPU）
+# 3. Train (Mac GPU)
 python train.py --dataset ESOL --data_dir ./dataset/ESOL --epochs 100 --batch_size 16 --device mps
 
-# 4. 运行测试
+# 4. Run tests
 python -m pytest tests/ -v
 ```
 
-**推荐硬件配置**：
+**硬件建议**：
 
-| 场景 | 推荐配置 |
-|------|---------|
+| 场景 | 配置 |
+|------|------|
 | 快速实验 | Mac M1+/M2+（MPS），batch=16 |
 | 正式训练 | NVIDIA GPU（CUDA），batch=32 |
-| 长序列生物大分子 | d_model=512, n_layers=6, batch=8 |
+| 长序列 | d_model=512, n_layers=6, batch=8 |
 
-> **注意**：Mamba 的 O(N) 效率优势在序列长度 1000+ tokens 时才开始明显显现。SMILES 分子序列普遍在 50-150 tokens 范围内，效率优势受限于此。该模型更适合蛋白质序列、长链聚合物等长序列场景。
+> SMILES 分子序列一般在 50–150 tokens。Mamba 的 O(N) 优势要到 1000+ tokens 才明显。长序列场景（蛋白质、聚合物）更合适。
 
 ---
 
@@ -61,8 +62,8 @@ bi-mamba-chem/
 ├── src/
 │   ├── models/
 │   │   ├── __init__.py
-│   │   ├── bimamba.py                    # 手动实现 SSM（无外部依赖）
-│   │   ├── bimamba_with_mamba_ssm.py     # mamba_ssm 包封装版本
+│   │   ├── bimamba.py                    # 纯 PyTorch SSM 实现
+│   │   ├── bimamba_with_mamba_ssm.py     # mamba_ssm 封装版本
 │   │   └── bimamba_with_mamba_ssm_architecture.md
 │   ├── data/
 │   │   ├── __init__.py
@@ -75,7 +76,7 @@ bi-mamba-chem/
 │   │   └── molecule_dataset_architecture.md
 │   ├── db/
 │   │   ├── __init__.py
-│   │   ├── database.py                  # SQLite 单例 + Dataclass 定义
+│   │   ├── database.py                  # SQLite 单例
 │   │   ├── experiment_repo.py           # ExperimentRepository CRUD
 │   │   └── molecule_repo.py              # MoleculeRepository CRUD
 │   ├── visualization/
@@ -86,22 +87,22 @@ bi-mamba-chem/
 │   │   └── molecule_plots.py             # RDKit 分子图
 │   └── shared/
 │       ├── __init__.py
-│       └── utils.py                      # 训练/评估参数解析、通用工具
+│       └── utils.py                      # 训练/评估参数解析
 ├── tests/
 │   ├── __init__.py
-│   ├── test_model.py                    # 模型前向/反向传播测试
-│   ├── test_data.py                     # 数据处理 + tokenization 测试
+│   ├── test_model.py                    # 前向/反向传播测试
+│   ├── test_data.py                     # 数据处理测试
 │   └── test_column_detection.py         # CSV 列名检测测试
 ├── scripts/
 │   ├── manage_experiments.py            # 实验 CRUD 命令行工具
-│   ├── batch_train_phase1.py            # 批量训练脚本（RTX 5060 Ti 优化）
+│   ├── batch_train_phase1.py            # 批量训练（RTX 5060 Ti）
 │   └── benchmarks/
-│       ├── benchmark_efficiency.py      # O(N) 效率基准测试
-│       ├── benchmark_transformer.py      # Transformer 对比基准测试
-│       ├── train_esol_pooling.py        # 不同 pooling 对比
-│       ├── split_esol.py                # ESOL 数据集划分
-│       └── split_all.py                 # 全数据集划分
-├── dataset/                             # MoleculeNet 数据集
+│       ├── benchmark_efficiency.py
+│       ├── benchmark_transformer.py
+│       ├── train_esol_pooling.py
+│       ├── split_esol.py
+│       └── split_all.py
+├── dataset/                             # MoleculeNet
 │   ├── ESOL/                           # 水溶解度（回归）
 │   ├── BBBP/                           # 血脑屏障渗透（分类）
 │   ├── ClinTox/                        # 药物毒性（分类）
@@ -110,17 +111,17 @@ bi-mamba-chem/
 │   ├── bace/                          # BACE 抑制剂（分类）
 │   ├── HIV/                           # HIV 感染性（分类）
 │   ├── SIDER/                         # 药物副作用（分类）
-│   ├── MUV/                           # MUV 数据集
+│   ├── MUV/                           # MUV（分类）
 │   ├── ZINC250K/                      # ZINC250K（回归）
 │   ├── EGFR/                          # EGFR 抑制剂
 │   ├── mpro/                          # Mpro 抑制剂
 │   └── BDB2020+/                      # BindingDB 2020+
-├── checkpoints/                        # 模型权重保存目录
-├── logs/                               # 训练日志目录
-├── train.py                            # 单任务训练入口
-├── eval.py                             # 模型评估入口
-├── mamba.tutorial.md                   # Mamba SSM 完全入门指南
-├── requirements.txt                    # Python 依赖
+├── checkpoints/
+├── logs/
+├── train.py
+├── eval.py
+├── mamba.tutorial.md
+├── requirements.txt
 └── README.md
 ```
 
@@ -131,17 +132,15 @@ bi-mamba-chem/
 ### 依赖安装
 
 ```bash
-# 基础依赖
 pip install -r requirements.txt
 
-# PyTorch（根据你的硬件选择）
-# Apple Silicon Mac
+# PyTorch（Apple Silicon）
 pip install torch torchvision
 
-# NVIDIA GPU (CUDA 11.8+)
+# PyTorch（NVIDIA GPU, CUDA 11.8+）
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 
-# RDKit（强烈推荐用 conda 安装）
+# RDKit
 conda install -c conda-forge rdkit -y
 ```
 
@@ -149,15 +148,15 @@ conda install -c conda-forge rdkit -y
 
 | 设备 | 说明 | 命令 |
 |------|------|------|
-| **MPS** | Apple Silicon GPU（Mac M1+/M2+/M3+） | `--device mps` |
-| **CUDA** | NVIDIA GPU | `--device cuda` |
-| **CPU** | CPU（调试用） | `--device cpu` |
+| MPS | Apple Silicon GPU | `--device mps` |
+| CUDA | NVIDIA GPU | `--device cuda` |
+| CPU | 调试用 | `--device cpu` |
 
 ```bash
-# 验证 MPS 可用性（Mac）
+# 验证 MPS（Mac）
 python -c "import torch; print(f'MPS: {torch.backends.mps.is_available()}')"
 
-# 验证 CUDA 可用性（NVIDIA）
+# 验证 CUDA
 python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
 ```
 
@@ -165,59 +164,46 @@ python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
 
 ## 数据集
 
-### 已有数据集
-
-项目在 `dataset/` 目录下包含以下 MoleculeNet 数据集：
-
 | 数据集 | 任务 | 分子数 | 类型 |
 |--------|------|--------|------|
-| ESOL | 回归（水溶解度） | ~1,100 | 回归 |
-| BBBP | 分类（血脑屏障） | ~2,000 | 分类 |
-| ClinTox | 分类（药物毒性） | ~1,500 | 分类 |
-| FreeSolv | 回归（水合自由能） | ~640 | 回归 |
-| Lipophilicity | 回归（脂溶性） | ~4,200 | 回归 |
-| bace | 分类（BACE 抑制剂） | ~1,500 | 分类 |
-| HIV | 分类（HIV 感染性） | ~40,000 | 分类 |
-| SIDER | 分类（药物副作用） | ~1,400 | 分类 |
-| MUV | 分类（MAV 验证） | ~35,000 | 分类 |
-| ZINC250K | 回归（溶解度） | ~250,000 | 回归 |
-| EGFR | 回归（EGFR 抑制剂） | ~5,000 | 回归 |
-| mpro | 回归（Mpro 抑制剂） | ~67,000 | 回归 |
+| ESOL | 水溶解度 | ~1,100 | 回归 |
+| BBBP | 血脑屏障 | ~2,000 | 分类 |
+| ClinTox | 药物毒性 | ~1,500 | 分类 |
+| FreeSolv | 水合自由能 | ~640 | 回归 |
+| Lipophilicity | 脂溶性 | ~4,200 | 回归 |
+| bace | BACE 抑制剂 | ~1,500 | 分类 |
+| HIV | HIV 感染性 | ~40,000 | 分类 |
+| SIDER | 药物副作用 | ~1,400 | 分类 |
+| MUV | MUV | ~35,000 | 分类 |
+| ZINC250K | 溶解度 | ~250,000 | 回归 |
+| EGFR | EGFR 抑制剂 | ~5,000 | 回归 |
+| mpro | Mpro 抑制剂 | ~67,000 | 回归 |
 
 ### 数据格式
-
-CSV 格式，`smiles` 列 + `label` 列：
 
 ```csv
 smiles,label
 CCO,-2.5
 CC(=O)OC,-1.8
 c1ccccc1,3.2
-O=C(C)Oc1ccccc1C=O,0.5
 ```
 
 ### 数据划分
 
-支持两种划分策略：**随机划分** 和 **Scaffold 划分**：
-
 ```bash
-# 随机划分（默认）
+# 随机划分
 python train.py --dataset ESOL --split random --split_seed 42
 
-# Scaffold 划分（基于分子骨架）
+# Scaffold 划分
 python train.py --dataset ESOL --split scaffold --split_seed 42
 ```
-
-Scaffold 划分能更好地评估模型对未知分子骨架的泛化能力。
 
 ---
 
 ## 训练
 
-### 单任务训练
-
 ```bash
-# ESOL 回归（manual SSM，无外部依赖）
+# ESOL 回归（纯 PyTorch SSM）
 python train.py \
     --dataset ESOL \
     --data_dir ./dataset/ESOL \
@@ -226,7 +212,7 @@ python train.py \
     --device mps \
     --model_type manual
 
-# BBBP 分类（使用 mamba_ssm 包）
+# BBBP 分类（mamba_ssm）
 python train.py \
     --dataset BBBP \
     --data_dir ./dataset/BBBP \
@@ -237,45 +223,35 @@ python train.py \
     --model_type mamba_ssm
 ```
 
-### 训练参数
+### 参数
 
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
+| 参数 | 默认 | 说明 |
+|------|------|------|
 | `--dataset` | 必需 | 数据集名称 |
-| `--data_dir` | `./dataset` | 数据目录 |
-| `--model_type` | `manual` | `manual`（无依赖）或 `mamba_ssm`（需安装 mamba-ssm） |
-| `--task_type` | `regression` | `regression` 或 `classification` |
-| `--split` | `random` | `random` 或 `scaffold` |
+| `--data_dir` | ./dataset | 数据目录 |
+| `--model_type` | manual | manual / mamba_ssm |
+| `--task_type` | regression | regression / classification |
+| `--split` | random | random / scaffold |
 | `--d_model` | 256 | 模型维度 |
-| `--d_mamba` | 256 | Mamba 内部维度 |
 | `--n_layers` | 4 | Bi-Mamba 层数 |
-| `--pooling` | `mean` | `mean` / `max` / `cls` |
+| `--pooling` | mean | mean / max / cls |
 | `--epochs` | 10 | 训练轮数 |
 | `--batch_size` | 32 | 批大小 |
 | `--learning_rate` | 1e-4 | 学习率 |
 | `--dropout` | 0.1 | Dropout 率 |
-| `--device` | `auto` | `cuda` / `mps` / `cpu` |
+| `--device` | auto | cuda / mps / cpu |
 | `--max_length` | 512 | 最大 SMILES 长度 |
-| `--db_path` | `interactive` | SQLite 数据库路径 |
-| `--single_file` | None | 单数据文件路径（自动划分 train/val/test） |
 
 ### 模型类型
 
 | 类型 | 说明 | 依赖 |
 |------|------|------|
-| `manual` | 纯 PyTorch 手动实现 SSM，无外部依赖 | 无 |
-| `mamba_ssm` | 使用 `mamba-ssm` 包，高效 GPU 计算 | `pip install mamba-ssm` |
-
-### 训练输出
-
-- 模型权重保存到 `checkpoints/{dataset}_bi_mamba_best.pt`
-- 训练日志保存到 `logs/{dataset}_{model_type}_{timestamp}.json`
+| manual | 纯 PyTorch SSM | 无 |
+| mamba_ssm | mamba-ssm 包 | pip install mamba-ssm |
 
 ---
 
 ## 评估
-
-### 评估已训练模型
 
 ```bash
 python eval.py \
@@ -286,124 +262,48 @@ python eval.py \
     --device mps
 ```
 
-### 评估指标
-
-| 任务 | 主要指标 | 其他指标 |
-|------|---------|---------|
-| 回归 | RMSE | MAE, MSE, RMSE_orig |
-| 分类 | ROC-AUC | Accuracy |
+| 任务 | 指标 |
+|------|------|
+| 回归 | RMSE, MAE, MSE |
+| 分类 | ROC-AUC, Accuracy |
 
 ---
 
 ## 实验追踪
 
-项目使用 SQLite 自动记录每次训练实验。
-
-### 管理实验
+SQLite 自动记录训练实验。
 
 ```bash
-# 列出所有实验
 python scripts/manage_experiments.py --list
-
-# 按状态筛选
 python scripts/manage_experiments.py --list --status completed
-
-# 查看实验详情
 python scripts/manage_experiments.py -d 1
-
-# 对比多个实验
 python scripts/manage_experiments.py -c 1 2 3
-
-# 删除实验
 python scripts/manage_experiments.py --delete 5
 ```
 
-### 训练时自动记录的内容
-
-- 模型配置（d_model, n_layers, pooling）
-- 超参数（lr, batch_size, dropout）
-- 每个 epoch 的训练/验证 loss 和指标
-- 最终测试集结果
-- 训练时长、硬件信息
+每次训练记录：模型配置、超参数、每 epoch loss/指标、测试结果、训练时长。
 
 ---
 
 ## 可视化
 
-### 训练曲线
-
 ```python
-from src.visualization import plot_training_curves
+from src.visualization import plot_training_curves, plot_prediction_scatter
+from src.visualization import draw_molecule, plot_molecule_grid, create_experiment_dashboard
 
-# 从日志文件加载并绘图
-plot_training_curves(
-    logs="logs/ESOL_manual_2026-04-14_21-44-19.json",
-    save_path="training.png"
-)
-```
-
-### 预测散点图
-
-```python
-from src.visualization import plot_prediction_scatter
-
-plot_prediction_scatter(
-    y_true=y_true,
-    y_pred=y_pred,
-    task_name="ESOL",
-    save_path="scatter.png"
-)
-```
-
-### 分子结构图
-
-```python
-from src.visualization import draw_molecule, plot_molecule_grid
-
-# 单个分子
+plot_training_curves(logs="logs/ESOL_manual_2026-04-14_21-44-19.json", save_path="training.png")
+plot_prediction_scatter(y_true=y_true, y_pred=y_pred, task_name="ESOL", save_path="scatter.png")
 draw_molecule("CCO", legend="Ethanol", save_path="ethanol.png")
-
-# 分子网格
-smiles_list = ["CCO", "CC(=O)OC", "c1ccccc1"]
-plot_molecule_grid(smiles_list, mols_per_row=3, save_path="molecules.png")
-```
-
-### 实验仪表盘
-
-```python
-from src.visualization import create_experiment_dashboard
-
-# 综合对比面板
-create_experiment_dashboard(
-    experiments=[exp1, exp2, exp3],
-    save_path="dashboard.png"
-)
+create_experiment_dashboard(experiments=[exp1, exp2, exp3], save_path="dashboard.png")
 ```
 
 ---
 
 ## 测试
 
-### 运行测试套件
-
 ```bash
-# 所有测试
 python -m pytest tests/ -v
-
-# 单个测试文件
 python -m pytest tests/test_model.py -v
-
-# 单个测试函数
-python -m pytest tests/test_data.py::test_tokenization -v
-
-# 直接运行（无需 pytest）
-python tests/test_model.py
-```
-
-### 测试覆盖报告
-
-```bash
-pip install pytest pytest-cov
 python -m pytest tests/ --cov=src --cov-report=term-missing
 ```
 
@@ -411,64 +311,24 @@ python -m pytest tests/ --cov=src --cov-report=term-missing
 
 ## 常见问题
 
-### NaN 损失
+**NaN 损失** — 降低 lr (`--learning_rate 1e-4`)，加梯度裁剪 (`--max_grad_norm 1.0`)，减 batch (`--batch_size 8`)
 
-```bash
-# 降低学习率
-python train.py --learning_rate 1e-4
+**GPU 显存不足** — 减 batch (`--batch_size 4`)，降模型维度 (`--d_model 128 --n_layers 2`)
 
-# 启用梯度裁剪
-python train.py --max_grad_norm 1.0
+**MPS 不可用（Mac）** — `conda install pytorch torchvision torchaudio -c pytorch`
 
-# 减小 batch_size
-python train.py --batch_size 8
-```
+**RDKit 安装失败** — `conda install -c conda-forge rdkit -y`
 
-### GPU 显存不足
-
-```bash
-# 减小 batch_size
-python train.py --batch_size 4
-
-# 减小模型维度
-python train.py --d_model 128 --n_layers 2
-```
-
-### MPS 不可用（Mac）
-
-```bash
-# 用 conda 安装 PyTorch（推荐）
-conda install pytorch torchvision torchaudio -c pytorch
-
-# 或用 CPU 调试
-python train.py --device cpu --batch_size 4
-```
-
-### RDKit 安装失败
-
-```bash
-# 用 conda（推荐）
-conda install -c conda-forge rdkit -y
-```
-
-### 为什么在 SMILES 任务上效率提升不明显？
-
-这是正常现象，不是实现问题。Mamba 的 O(N) 优势设计目标场景是**长序列**（语言模型上下文数千 tokens、基因组序列数万 bp）。SMILES 分子普遍在 50-150 tokens，在 512 tokens 时效率才刚逆转 Transformer，1000+ tokens 时优势才明显。因此：
-
-- **适合**: 蛋白质序列、长链聚合物等长序列生物大分子
-- **不必要优势**: 小分子 SMILES（50-150 tokens），此场景用 Transformer 足够
+**SMILES 上效率提升不明显？** — 正常的。Mamba 设计目标是长序列（语言模型上下文数千 tokens，基因组数万 bp）。SMILES 只有 50–150 tokens，这个长度下 Transformer 已经足够快。
 
 ---
 
 ## 参考
 
-- **Mamba 论文**: [arXiv:2312.00752](https://arxiv.org/abs/2312.00752) (Gu & Dao, 2023)
-- **mamba_ssm 库**: [state-spaces/mamba](https://github.com/state-spaces/mamba)
-- **HiPPO 初始化**: [HiPPO (NeurIPS 2020)](https://papers.neurips.cc/paper/2020/hash/102f0bb6efb3a6128a3c750dd16729be-Abstract.html)
-- **Mamba 教程**: [`mamba.tutorial.md`](./mamba.tutorial.md) — 从零理解 Mamba SSM
+- Mamba: [arXiv:2312.00752](https://arxiv.org/abs/2312.00752) (Gu & Dao, 2023)
+- mamba_ssm: [state-spaces/mamba](https://github.com/state-spaces/mamba)
+- HiPPO: [NeurIPS 2020](https://papers.neurips.cc/paper/2020/hash/102f0bb6efb3a6128a3c750dd16729be-Abstract.html)
 
 ---
-
-## 许可证
 
 MIT License
